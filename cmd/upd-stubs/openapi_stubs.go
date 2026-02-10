@@ -50,11 +50,11 @@ func generateOpenAPIStubFile(outDir string, spec *openapiSpec, tag string, ops [
 	var buf bytes.Buffer
 
 	imports := map[string]string{
-		"encoding/json":         "",
-		"log":                   "",
-		"net/http":              "",
-		"grpc-mock/pkg/ctxkeys": "",
-		spec.GenPkgPath:         "gen",
+		"encoding/json":            "",
+		"log":                      "",
+		"net/http":                 "",
+		"openapi-mock/pkg/ctxkeys": "",
+		spec.GenPkgPath:            "gen",
 	}
 
 	fmt.Fprintf(&buf, "package %s\n\n", spec.PkgName)

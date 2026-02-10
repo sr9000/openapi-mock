@@ -10,9 +10,9 @@ import (
 	"net/http"
 	"time"
 
-	"grpc-mock/pkg/ctxkeys"
-	"grpc-mock/pkg/metrics"
-	"grpc-mock/pkg/recorder"
+	"openapi-mock/pkg/ctxkeys"
+	"openapi-mock/pkg/metrics"
+	"openapi-mock/pkg/recorder"
 )
 
 type responseWriter struct {

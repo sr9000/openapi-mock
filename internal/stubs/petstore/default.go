@@ -2,9 +2,9 @@ package petstore
 
 import (
 	"encoding/json"
-	"grpc-mock/pkg/ctxkeys"
 	"log"
 	"net/http"
+	"openapi-mock/pkg/ctxkeys"
 )
 
 type DefaultHandlers struct {

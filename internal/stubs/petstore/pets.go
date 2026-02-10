@@ -2,10 +2,10 @@ package petstore
 
 import (
 	"encoding/json"
-	gen "grpc-mock/internal/generated/petstore"
-	"grpc-mock/pkg/ctxkeys"
 	"log"
 	"net/http"
+	gen "openapi-mock/internal/generated/petstore"
+	"openapi-mock/pkg/ctxkeys"
 )
 
 type PetsHandlers struct {

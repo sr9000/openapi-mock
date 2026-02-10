@@ -164,8 +164,8 @@ import (
     "log"
     "net/http"
 
-    gen "grpc-mock/internal/generated/petstore"
-    "grpc-mock/pkg/ctxkeys"
+    gen "openapi-mock/internal/generated/petstore"
+    "openapi-mock/pkg/ctxkeys"
 )
 
 type PetsHandlers struct {
@@ -231,7 +231,7 @@ import (
     "log"
     "net/http"
 
-    "grpc-mock/pkg/ctxkeys"
+    "openapi-mock/pkg/ctxkeys"
 )
 
 type DefaultHandlers struct {
@@ -262,7 +262,7 @@ package petstore
 import (
     "net/http"
 
-    gen "grpc-mock/internal/generated/petstore"
+    gen "openapi-mock/internal/generated/petstore"
 )
 
 type CompositeHandlers struct {
@@ -312,9 +312,9 @@ import (
     "net/http"
     "time"
 
-    "grpc-mock/pkg/ctxkeys"
-    "grpc-mock/pkg/metrics"
-    "grpc-mock/pkg/recorder"
+    "openapi-mock/pkg/ctxkeys"
+    "openapi-mock/pkg/metrics"
+    "openapi-mock/pkg/recorder"
 )
 
 type responseWriter struct {
@@ -417,12 +417,12 @@ import (
     "github.com/go-chi/chi/v5"
     "github.com/spf13/cobra"
 
-    gen "grpc-mock/internal/generated/petstore"
-    stubs "grpc-mock/internal/stubs/petstore"
-    "grpc-mock/pkg/metrics"
-    "grpc-mock/pkg/mgmt"
-    "grpc-mock/pkg/middleware"
-    "grpc-mock/pkg/recorder"
+    gen "openapi-mock/internal/generated/petstore"
+    stubs "openapi-mock/internal/stubs/petstore"
+    "openapi-mock/pkg/metrics"
+    "openapi-mock/pkg/mgmt"
+    "openapi-mock/pkg/middleware"
+    "openapi-mock/pkg/recorder"
 )
 
 type Config struct {

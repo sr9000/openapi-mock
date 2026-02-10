@@ -9,9 +9,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/wire"
 
-	petstoregen "grpc-mock/internal/generated/petstore"
+	petstoregen "openapi-mock/internal/generated/petstore"
 
-	petstorestub "grpc-mock/internal/stubs/petstore"
+	petstorestub "openapi-mock/internal/stubs/petstore"
 )
 
 type HTTPApp struct {

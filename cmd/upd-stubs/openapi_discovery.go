@@ -14,7 +14,7 @@ const (
 	specsDir         = "specs"
 	openapiGenDir    = "internal/generated"
 	openapiStubsDir  = "internal/stubs"
-	openapiModulePfx = "grpc-mock"
+	openapiModulePfx = "openapi-mock"
 )
 
 // openapiSpec represents a discovered OpenAPI specification

@@ -3,8 +3,8 @@ global:
   evaluation_interval: 5s
 
 scrape_configs:
-  - job_name: 'grpc-mock'
+  - job_name: 'openapi-mock'
     static_configs:
-      - targets: ['grpc-mock:9100']
+      - targets: ['openapi-mock:9100']
     metrics_path: '/metrics'
     scrape_interval: 5s

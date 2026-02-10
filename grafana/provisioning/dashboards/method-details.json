@@ -165,7 +165,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_requests_total{method=\"$method\"}[$__rate_interval])) by (status)",
+          "expr": "sum(rate(http_requests_total{method=\"$method\"}[$__rate_interval])) by (status)",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -304,7 +304,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_requests_total{method=\"$method\"}[$__rate_interval])) by (status) / ignoring(status) group_left sum(rate(grpc_requests_total{method=\"$method\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_requests_total{method=\"$method\"}[$__rate_interval])) by (status) / ignoring(status) group_left sum(rate(http_requests_total{method=\"$method\"}[$__rate_interval]))",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -408,7 +408,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_errors_total{method=\"$method\"}[$__rate_interval])) by (error)",
+          "expr": "sum(rate(http_errors_total{method=\"$method\"}[$__rate_interval])) by (error)",
           "legendFormat": "{{error}}",
           "refId": "A"
         }
@@ -501,7 +501,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_errors_total{method=\"$method\"}[$__rate_interval])) by (error) / ignoring(error) group_left sum(rate(grpc_errors_total{method=\"$method\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_errors_total{method=\"$method\"}[$__rate_interval])) by (error) / ignoring(error) group_left sum(rate(http_errors_total{method=\"$method\"}[$__rate_interval]))",
           "legendFormat": "{{error}}",
           "refId": "A"
         }
@@ -605,7 +605,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_panics_total{method=\"$method\"}[$__rate_interval])) by (panic)",
+          "expr": "sum(rate(http_panics_total{method=\"$method\"}[$__rate_interval])) by (panic)",
           "legendFormat": "{{panic}}",
           "refId": "A"
         }
@@ -698,7 +698,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_panics_total{method=\"$method\"}[$__rate_interval])) by (panic) / ignoring(panic) group_left sum(rate(grpc_panics_total{method=\"$method\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_panics_total{method=\"$method\"}[$__rate_interval])) by (panic) / ignoring(panic) group_left sum(rate(http_panics_total{method=\"$method\"}[$__rate_interval]))",
           "legendFormat": "{{panic}}",
           "refId": "A"
         }
@@ -802,7 +802,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.50, sum(rate(grpc_request_duration_seconds_bucket{method=\"$method\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{method=\"$method\"}[$__rate_interval])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
@@ -811,7 +811,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.90, sum(rate(grpc_request_duration_seconds_bucket{method=\"$method\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{method=\"$method\"}[$__rate_interval])) by (le))",
           "legendFormat": "p90",
           "refId": "B"
         },
@@ -820,7 +820,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(grpc_request_duration_seconds_bucket{method=\"$method\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{method=\"$method\"}[$__rate_interval])) by (le))",
           "legendFormat": "p95",
           "refId": "C"
         },
@@ -829,7 +829,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.99, sum(rate(grpc_request_duration_seconds_bucket{method=\"$method\"}[$__rate_interval])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{method=\"$method\"}[$__rate_interval])) by (le))",
           "legendFormat": "p99",
           "refId": "D"
         }
@@ -840,7 +840,7 @@
   "refresh": "5s",
   "schemaVersion": 42,
   "tags": [
-    "grpc-mock",
+    "openapi-mock",
     "method-details"
   ],
   "templating": {
@@ -865,14 +865,14 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(grpc_requests_total, method)",
+        "definition": "label_values(http_requests_total, method)",
         "includeAll": false,
         "label": "Method",
         "name": "method",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(grpc_requests_total, method)",
+          "query": "label_values(http_requests_total, method)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
@@ -889,6 +889,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "gRPC Mock - Method Details",
-  "uid": "grpc-mock-method-details",
+  "uid": "openapi-mock-method-details",
   "version": 1
 }

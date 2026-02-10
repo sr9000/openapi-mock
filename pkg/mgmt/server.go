@@ -7,7 +7,7 @@ import (
 	"log"
 	"net/http"
 
-	"grpc-mock/pkg/recorder"
+	"openapi-mock/pkg/recorder"
 )
 
 //go:embed openapi.json

@@ -825,7 +825,7 @@
   "refresh": "5s",
   "schemaVersion": 42,
   "tags": [
-    "grpc-mock",
+    "openapi-mock",
     "resources"
   ],
   "templating": {
@@ -853,6 +853,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "gRPC Mock - Resources Overview",
-  "uid": "grpc-mock-resources-overview",
+  "uid": "openapi-mock-resources-overview",
   "version": 1
 }

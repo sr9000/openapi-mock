@@ -2,10 +2,10 @@ package mgmt
 
 import (
 	"encoding/json"
-	"grpc-mock/pkg/recorder"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"openapi-mock/pkg/recorder"
 	"testing"
 	"time"
 )

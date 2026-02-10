@@ -1,187 +1,126 @@
-# upd-stubs: Генератор gRPC-заглушек
-
-`upd-stubs` — это консольная утилита (CLI) для автоматизации создания и сопровождения реализаций gRPC-mock серверов на
-языке Go. Инструмент сканирует сгенерированный Protobuf-код, формирует типобезопасные заглушки, настраивает внедрение
+# upd-stubs: Генератор OpenAPI-заглушек
+`upd-stubs` — это консольная утилита (CLI) для автоматизации создания и сопровождения реализаций OpenAPI mock серверов на
+языке Go. Инструмент сканирует спецификации OpenAPI, формирует типобезопасные заглушки, настраивает внедрение
 зависимостей (Dependency Injection) и выполняет «умное» обновление существующих файлов, сохраняя ранее написанную
 бизнес-логику.
-
 ## Ключевые возможности
-
 ### 1. Автоматическая генерация заглушек
-
-* **Анализ Proto-кода:** Рекурсивно сканирует Go-пакеты в директории `internal/genproto` для поиска интерфейсов
-  gRPC-сервисов.
-* **Распознавание интерфейсов:** Автоматически выявляет типы, оканчивающиеся на `Server` (исключая вспомогательные
-  `Unimplemented` и `Unsafe`), а также соответствующие функции регистрации (`Register...`).
-* **Формирование структуры:** Генерирует файлы реализации в директории `internal/stubs`, зеркально повторяя структуру
-  пакетов исходных proto-файлов.
-
+* **Анализ OpenAPI спецификаций:** Рекурсивно сканирует директорию `specs/` для поиска файлов `openapi.yaml`, `openapi.yml` или `openapi.json`.
+* **Распознавание операций:** Автоматически выявляет все HTTP операции и группирует их по тегам.
+* **Формирование структуры:** Генерирует файлы реализации в директории `internal/stubs`, зеркально повторяя структуру спецификаций.
 ### 2. Интеллектуальное (безопасное) обновление
-
-В отличие от стандартных генераторов, которые часто просто перезаписывают файлы, `upd-stubs` анализирует абстрактное
-синтаксическое дерево (AST) существующего кода, чтобы сохранить ваш ручной труд:
-
-* **Синхронизация сигнатур:** При изменении контракта в `.proto` файле, инструмент обновляет сигнатуру метода в Go (типы
-  параметров и возвращаемых значений), **сохраняя при этом тело функции** нетронутым.
-* **Сохранение имен аргументов (Best-effort):** Генератор следует принципу *best-effort* — он сохранит столько
-  существующих имен аргументов, сколько сможет. Алгоритм пытается сопоставить старые аргументы с новыми. Если типы
-  совпадают, ваши имена переменных (например, `customReq`) останутся. Если же сигнатура изменилась слишком сильно,
-  генератор может откатиться к стандартным именам (например, `arg1`, `arg2` и так далее), чтобы гарантировать
-  уникальность имён.
-* **История изменений:** При обновлении сигнатуры над методом добавляется комментарий с его предыдущей версией для
-  удобства сравнения.
-* **Добавление методов:** Автоматически обнаруживает новые RPC-методы, появившиеся в протоколе, и добавляет их заготовки
-  в код, если они отсутствуют.
-* **Сохранение методов:** *Лишние* методы останутся нетронутыми, что позволит сохранить реализацию заглушки в случае
-  переименования метода в оригинальном `.proto` файле.
-* **Управление импортами:** Автоматически добавляет необходимые зависимости и псевдонимы пакетов (например,
-  `pkgnamepb`), а также удаляет неиспользуемые импорты (аналог `goimports`).
-
+В отличие от стандартных генераторов, которые часто просто перезаписывают файлы, `upd-stubs` анализирует существующий код, чтобы сохранить ваш ручной труд:
+* **Добавление методов:** Автоматически обнаруживает новые операции, появившиеся в спецификации, и добавляет их заготовки в код, если они отсутствуют.
+* **Сохранение методов:** Существующие реализации методов остаются нетронутыми.
+* **Управление импортами:** Автоматически добавляет необходимые зависимости.
 ### 3. Качественная кодогенерация
-
 Создаваемый код соответствует минимальным стандартам качества и содержит необходимую обвязку:
-
-* **Структура сервисов:** Генерирует структуры, встраивающие `Unimplemented...Server`, что обеспечивает прямую
-  совместимость с будущими версиями API.
-* **Конструкторы:** Создает функции `New<Service>Server`, которые:
-    * Принимают `grpc.ServiceRegistrar` и сразу регистрируют сервер.
-    * Принимают флаг конфигурации `enableLogging`.
-* **Корректные возвращаемые значения:** Новые методы сразу возвращают валидные «нулевые» значения (например, `nil`, `0`,
-  `""` или указатели на пустые структуры), благодаря чему код компилируется без ошибок сразу после генерации.
-
+* **Структура обработчиков:** Генерирует структуры для каждого тега (группы операций) с поддержкой логирования.
+* **Конструкторы:** Создает функции `New<Tag>Handlers`, которые принимают флаг конфигурации `enableLogging`.
+* **Композитные обработчики:** Создает файл `provider.go` с типом `CompositeHandlers`, объединяющим все обработчики тегов и реализующим интерфейс `ServerInterface`.
 ### 4. Логирование и работа с контекстом
-
-* **Контекст запроса:** Все сгенерированные методы принимают `context.Context` и умеют извлекать `reqID` (Request ID),
-  используя ключ из пакета `grpc-mock/pkg/ctxkeys`.
-* **Управляемое логирование:** Структура сервиса содержит поле `EnableLogging`.
-    * Если опция включена, в лог автоматически пишется имя метода, идентификатор запроса и входящие данные.
-
+* **Контекст запроса:** Все сгенерированные методы умеют извлекать `reqID` (Request ID), используя ключ из пакета `openapi-mock/pkg/ctxkeys`.
+* **Управляемое логирование:** Структура обработчика содержит поле `EnableLogging`.
+    * Если опция включена, в лог автоматически пишется имя метода и идентификатор запроса.
 ### 5. Интеграция с Google Wire
-
-* **Автоматическое связывание:** Генерирует файл `internal/app/wire.go` для настройки dependency injection с помощью
-  [Google Wire](https://github.com/google/wire).
-* **Единая точка входа:** Собирает все сгенерированные заглушки в общую структуру `App`.
-* **Набор провайдеров:** Формирует `wire.NewSet`, включающий конструкторы всех обнаруженных сервисов, что позволяет
-  инициализировать весь мок-сервер одной строкой.
-
+* **Автоматическое связывание:** Генерирует файл `internal/app/openapi_wire.go` для настройки dependency injection с помощью [Google Wire](https://github.com/google/wire).
+* **Единая точка входа:** Собирает все сгенерированные заглушки в общую структуру `HTTPApp`.
+* **Набор провайдеров:** Формирует `wire.NewSet`, включающий конструкторы всех обнаруженных обработчиков.
 ---
-
 ## 📂 Структура проекта
-
 Инструмент ориентирован на следующую структуру директорий:
-
 ```text
+./specs/                     # Входные данные: OpenAPI спецификации
+└── <api-name>/              # Каждая API в отдельной директории
+    └── openapi.yaml         # OpenAPI 3.0 спецификация
 ./internal/
 ├── app
-│   ├── wire.go              # Обновляется: Wire файл, описывает внедрение зависимостей
-│   └── wire_gen.go          # Обновляется: Реальный файл для компиляции, генерируется из wire.go
-├── genproto                 # Входные данные: Сгенерированный gRPC-код (pb.go файлы)
-│   └── *                    # Входные данные: Каждый сервис в отдельной директории (сохраняется структура proto)
-│       ├── *.pb.go
-│       └── *_grpc.pb.go
-└── stubs                    # Выходные данные: Сгенерированные заглушки реализаций
-    └── *                    # Выходные данные: Каждый сервис в отдельной директории (сохраняется структура proto)
-        └── *_server.go
+│   ├── openapi_wire.go      # Обновляется: Wire файл для HTTP сервера
+│   └── wire_gen.go          # Обновляется: Реальный файл для компиляции
+├── generated                # Выходные данные: Сгенерированный oapi-codegen код
+│   └── <api-name>/
+│       ├── server.gen.go    # Chi-сервер
+│       ├── spec.gen.go      # Спецификация
+│       └── types.gen.go     # Типы данных
+└── stubs                    # Выходные данные: Сгенерированные заглушки
+    └── <api-name>/
+        ├── <tag>.go         # Обработчики для каждого тега
+        └── provider.go      # Композитный обработчик
 ```
-
 ---
-
 ## 🛠 Примеры генерируемого кода
-
-### 1. Файл реализации заглушки
-
-Для сервиса `EchoService` в пакете `echo` инструмент создаст файл `internal/stubs/echo/echo_server.go`:
-
+### 1. Файл реализации заглушки для тега "pets"
+Для спецификации `petstore` инструмент создаст файл `internal/stubs/petstore/pets.go`:
 ```go
-package echo
-
+package petstore
 import (
-	"context"
-	"log"
-
-	echopb "project_name/internal/genproto/echo"
-	"google.golang.org/grpc"
+"encoding/json"
+"log"
+"net/http"
+gen "openapi-mock/internal/generated/petstore"
+"openapi-mock/pkg/ctxkeys"
 )
-
-// Гарантия соответствия интерфейсу
-var _ echopb.EchoServiceServer = (*EchoServer)(nil)
-
-type EchoServer struct {
-	echopb.UnimplementedEchoServiceServer // Встраивание Unimplemented-заглушки для прямой совместимости
-	EnableLogging                         bool
+type PetsHandlers struct {
+EnableLogging bool
 }
-
-// Конструктор, выполняет авто-регистрацию в gRPC сервере
-func NewEchoServer(server grpc.ServiceRegistrar, enableLogging bool) *EchoServer {
-	s := &EchoServer{EnableLogging: enableLogging}
-	echopb.RegisterEchoServiceServer(server, s)
-	return s
+func NewPetsHandlers(enableLogging bool) *PetsHandlers {
+return &PetsHandlers{EnableLogging: enableLogging}
 }
-
-// Реализация метода с поддержкой логирования
-func (s *EchoServer) Echo(ctx context.Context, req *echopb.EchoRequest) (*echopb.EchoResponse, error) {
-	if s.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [EchoServer] вызван метод Echo с параметрами: %+v", reqID, req)
-	}
-	return &echopb.EchoResponse{}, nil
+func (h *PetsHandlers) ListPets(w http.ResponseWriter, r *http.Request, params gen.ListPetsParams) {
+if h.EnableLogging {
+reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
+log.Printf("[req_id=%s] [PetsHandlers] ListPets", reqID)
+}
+w.Header().Set("Content-Type", "application/json")
+json.NewEncoder(w).Encode([]gen.Pet{})
 }
 ```
-
-### 2. Файл конфигурации Wire
-
-Генерирует `internal/app/wire.go`:
-
+### 2. Файл provider.go
+```go
+// Code generated by upd-stubs. DO NOT EDIT.
+package petstore
+import (
+"net/http"
+gen "openapi-mock/internal/generated/petstore"
+)
+type CompositeHandlers struct {
+default_ *DefaultHandlers
+pets     *PetsHandlers
+}
+func NewCompositeHandlers(default_ *DefaultHandlers, pets *PetsHandlers) gen.ServerInterface {
+return &CompositeHandlers{default_: default_, pets: pets}
+}
+var _ gen.ServerInterface = (*CompositeHandlers)(nil)
+func (c *CompositeHandlers) ListPets(w http.ResponseWriter, r *http.Request, params gen.ListPetsParams) {
+c.pets.ListPets(w, r, params)
+}
+```
+### 3. Файл конфигурации Wire
+Генерирует `internal/app/openapi_wire.go`:
 ```go
 //go:build wireinject
 // +build wireinject
-
 package app
-
 import (
-	"github.com/google/wire"
-	"google.golang.org/grpc"
-	echostub "project_name/internal/stubs/echo"
+"github.com/go-chi/chi/v5"
+"github.com/google/wire"
+petstoregen "openapi-mock/internal/generated/petstore"
+petstorestub "openapi-mock/internal/stubs/petstore"
 )
-
-type App struct {
-	Echo *echostub.EchoServer
+type HTTPApp struct {
+Router          *chi.Mux
+PetstoreDefault *petstorestub.DefaultHandlers
+PetstorePets    *petstorestub.PetsHandlers
 }
-
-var ProviderSet = wire.NewSet(
-	echostub.NewEchoServer,
-	wire.Struct(new(App), "*"),
+var HTTPProviderSet = wire.NewSet(
+petstorestub.NewDefaultHandlers,
+petstorestub.NewPetsHandlers,
+providePetstoreHandlers,
+provideHTTPRouter,
+wire.Struct(new(HTTPApp), "*"),
 )
-
-func InitializeApp(server grpc.ServiceRegistrar, enableLogging bool) (*App, error) {
-	wire.Build(ProviderSet)
-	return nil, nil
+func InitializeHTTPApp(enableLogging bool) (*HTTPApp, error) {
+wire.Build(HTTPProviderSet)
+return nil, nil
 }
 ```
-
----
-
-## ⚙️ Принцип работы механизма обновлений
-
-Предположим, вы изменили метод `Echo` в `.proto` файле (например, поменяли тип входящего аргумента). После запуска
-`upd-stubs` произойдет следующее:
-
-**Было (Ваш код с кастомной логикой):**
-
-```go
-func (s *EchoServer) Echo(ctx context.Context, req *echopb.OldReq) (*echopb.Resp, error) {
-	return &echopb.Resp{Msg: "Привет"}, nil
-}
-```
-
-**Стало (После работы утилиты):**
-
-```go
-// Previous signature: func (s *EchoServer) Echo(ctx context.Context, req *echopb.OldReq) (*echopb.Resp, error)
-func (s *EchoServer) Echo(ctx context.Context, req *echopb.NewReq) (*echopb.Resp, error) {
-	return &echopb.Resp{Msg: "Привет"}, nil
-}
-```
-
-*Важно: Код внутри тела функции остается нетронутым. Вам нужно лишь скорректировать логику под новые типы данных, при
-этом ваши наработки не будут потеряны.*

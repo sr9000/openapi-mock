@@ -106,7 +106,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(grpc_request_duration_seconds_bucket[$__rate_interval])) by (le, method))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[$__rate_interval])) by (le, method))",
           "legendFormat": "{{method}}",
           "refId": "A"
         }
@@ -228,7 +228,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(grpc_request_duration_seconds_bucket{status=~\"error|panic\"}[$__rate_interval])) by (le, method, status))",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{status=~\"error|panic\"}[$__rate_interval])) by (le, method, status))",
           "legendFormat": "{{method}} [{{status}}]",
           "refId": "A"
         }
@@ -319,7 +319,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_requests_total[$__rate_interval])) by (method)",
+          "expr": "sum(rate(http_requests_total[$__rate_interval])) by (method)",
           "legendFormat": "{{method}}",
           "refId": "A"
         }
@@ -441,7 +441,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_requests_total{status=~\"error|panic\"}[$__rate_interval])) by (method, status)",
+          "expr": "sum(rate(http_requests_total{status=~\"error|panic\"}[$__rate_interval])) by (method, status)",
           "legendFormat": "{{method}} [{{status}}]",
           "refId": "A"
         }
@@ -532,7 +532,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_requests_total{status=\"error\"}[$__rate_interval])) by (method) / sum(rate(grpc_requests_total[$__rate_interval])) by (method)",
+          "expr": "sum(rate(http_requests_total{status=\"error\"}[$__rate_interval])) by (method) / sum(rate(http_requests_total[$__rate_interval])) by (method)",
           "legendFormat": "{{method}} error",
           "refId": "A"
         }
@@ -623,7 +623,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(grpc_requests_total{status=\"panic\"}[$__rate_interval])) by (method) / sum(rate(grpc_requests_total[$__rate_interval])) by (method)",
+          "expr": "sum(rate(http_requests_total{status=\"panic\"}[$__rate_interval])) by (method) / sum(rate(http_requests_total[$__rate_interval])) by (method)",
           "legendFormat": "{{method}} panic",
           "refId": "A"
         }
@@ -634,7 +634,7 @@
   "refresh": "5s",
   "schemaVersion": 42,
   "tags": [
-    "grpc-mock",
+    "openapi-mock",
     "methods"
   ],
   "templating": {
@@ -662,6 +662,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "gRPC Mock - Methods Overview",
-  "uid": "grpc-mock-methods-overview",
+  "uid": "openapi-mock-methods-overview",
   "version": 1
 }
