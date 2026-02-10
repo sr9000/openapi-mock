@@ -1,9 +1,9 @@
-.PHONY: all build run gen-proto gen-wire clean help
+.PHONY: all build run gen-proto gen-wire clean help openapi
 
 # Default target: show help when `make` is called without arguments
 .DEFAULT_GOAL := help
 
-all: proto stub wire build
+all: proto openapi stub wire build
 
 # Update go_package in proto files
 update-proto-pkg:
@@ -18,6 +18,13 @@ proto: update-proto-pkg
 	@echo "===================="
 	@echo "(Re)Generating protobufs..."
 	./scripts/gen-protos.sh
+
+# Generate OpenAPI code
+openapi:
+	@echo
+	@echo "===================="
+	@echo "Generating OpenAPI code..."
+	@chmod +x ./scripts/gen-openapi.sh && ./scripts/gen-openapi.sh
 
 stub:
 	@echo
@@ -39,18 +46,33 @@ wire:
 	go run github.com/google/wire/cmd/wire@latest gen ./internal/app
 
 # Build the server
-build:
+build: build-grpc build-openapi
+
+build-grpc:
 	@echo
 	@echo "===================="
-	@echo "Building server..."
+	@echo "Building gRPC server..."
 	go build -o bin/grpc-mock ./cmd/grpc-mock
 
-# Run the server
+build-openapi:
+	@echo
+	@echo "===================="
+	@echo "Building OpenAPI server..."
+	go build -o bin/openapi-mock ./cmd/openapi-mock
+
+# Run the gRPC server
 run:
 	@echo
 	@echo "===================="
-	@echo "Running server..."
+	@echo "Running gRPC server..."
 	go run ./cmd/grpc-mock
+
+# Run the OpenAPI server
+run-openapi:
+	@echo
+	@echo "===================="
+	@echo "Running OpenAPI server..."
+	go run ./cmd/openapi-mock run
 
 # Docker operations
 docker-build:
@@ -93,14 +115,18 @@ compose-down:
 # Show help
 help:
 	@echo "Available targets:"
-	@echo "  proto        - (Re)Generate .pb.go files"
-	@echo "  stub         - Update gRPC stubs"
-	@echo "  wire         - Update wire dependency injection"
-	@echo "  build        - Build the server binary"
-	@echo "  run          - Run the server"
-	@echo "  docker-build - Build production Docker image"
-	@echo "  docker-run   - Run production Docker container"
-	@echo "  docker-dev   - Start development environment (watch mode)"
-	@echo "  compose-up   - Start full stack (Mock + Monitoring)"
-	@echo "  compose-logs - Follow logs of full stack"
-	@echo "  compose-down - Stop full stack"
+	@echo "  proto          - (Re)Generate .pb.go files"
+	@echo "  openapi        - Generate OpenAPI code from specs"
+	@echo "  stub           - Update gRPC stubs"
+	@echo "  wire           - Update wire dependency injection"
+	@echo "  build          - Build all server binaries"
+	@echo "  build-grpc     - Build gRPC server binary"
+	@echo "  build-openapi  - Build OpenAPI server binary"
+	@echo "  run            - Run gRPC server"
+	@echo "  run-openapi    - Run OpenAPI server"
+	@echo "  docker-build   - Build production Docker image"
+	@echo "  docker-run     - Run production Docker container"
+	@echo "  docker-dev     - Start development environment (watch mode)"
+	@echo "  compose-up     - Start full stack (Mock + Monitoring)"
+	@echo "  compose-logs   - Follow logs of full stack"
+	@echo "  compose-down   - Stop full stack"

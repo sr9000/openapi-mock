@@ -573,18 +573,18 @@ run-openapi:
 ## Checklist
 
 ### M1: Minimal Viable
-- [ ] `go get github.com/go-chi/chi/v5 github.com/getkin/kin-openapi/openapi3 github.com/oapi-codegen/runtime`
-- [ ] `go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest`
-- [ ] Create `scripts/gen-openapi.sh`
-- [ ] Create `specs/petstore/openapi.yaml`
-- [ ] Run `./scripts/gen-openapi.sh`
-- [ ] Create `internal/stubs/petstore/{pets,default,provider}.go`
-- [ ] Create `pkg/middleware/recording.go`
-- [ ] Create `cmd/openapi-mock/main.go`
-- [ ] Add `NewHTTP()` and `RecordHTTPRequest()` to `pkg/metrics/metrics.go`
-- [ ] Test: `go run ./cmd/openapi-mock run`
-- [ ] Test: `curl http://localhost:8080/pets`
-- [ ] Test: `curl http://localhost:9000/logs`
+- [x] `go get github.com/go-chi/chi/v5 github.com/getkin/kin-openapi/openapi3 github.com/oapi-codegen/runtime`
+- [x] `go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest`
+- [x] Create `scripts/gen-openapi.sh`
+- [x] Create `specs/petstore/openapi.yaml`
+- [x] Run `./scripts/gen-openapi.sh`
+- [x] Create `internal/stubs/petstore/{pets,default,provider}.go`
+- [x] Create `pkg/middleware/recording.go`
+- [x] Create `cmd/openapi-mock/main.go`
+- [x] Add `NewHTTP()` and `RecordHTTPRequest()` to `pkg/metrics/metrics.go`
+- [x] Test: `go run ./cmd/openapi-mock run`
+- [x] Test: `curl http://localhost:8080/pets`
+- [x] Test: `curl http://localhost:9000/logs`
 
 ### M2: Auto Generation
 - [ ] Refactor `cmd/upd-stubs/main.go` into separate files

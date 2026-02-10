@@ -21,6 +21,10 @@ type Metrics struct {
 	ErrorsTotal     *prometheus.CounterVec
 	PanicsTotal     *prometheus.CounterVec
 
+	// HTTP metrics
+	HTTPRequestsTotal   *prometheus.CounterVec
+	HTTPRequestDuration *prometheus.HistogramVec
+
 	// Resource metrics (custom gauges)
 	MemoryUsage *prometheus.GaugeVec
 	Goroutines  prometheus.Gauge
@@ -96,6 +100,56 @@ func New(port string) *Metrics {
 	return m
 }
 
+// NewHTTP creates a new Metrics instance for HTTP server with HTTP-specific metrics
+func NewHTTP(port string) *Metrics {
+	registry := prometheus.NewRegistry()
+
+	m := &Metrics{
+		HTTPRequestsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_requests_total",
+				Help: "Total number of HTTP requests",
+			},
+			[]string{"method", "path", "status"},
+		),
+		HTTPRequestDuration: prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "http_request_duration_seconds",
+				Help:    "Histogram of HTTP request latencies",
+				Buckets: prometheus.DefBuckets,
+			},
+			[]string{"method", "path", "status"},
+		),
+		MemoryUsage: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: "http_memory_bytes",
+				Help: "Memory usage in bytes",
+			},
+			[]string{"type"},
+		),
+		Goroutines: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "http_goroutines_total",
+				Help: "Number of goroutines",
+			},
+		),
+		registry: registry,
+		port:     port,
+	}
+
+	// Register HTTP metrics
+	registry.MustRegister(m.HTTPRequestsTotal)
+	registry.MustRegister(m.HTTPRequestDuration)
+	registry.MustRegister(m.MemoryUsage)
+	registry.MustRegister(m.Goroutines)
+
+	// Register default Go collectors for CPU, memory, GC stats
+	registry.MustRegister(collectors.NewGoCollector())
+	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
+	return m
+}
+
 // RecordRequest records a gRPC request with its duration and status
 func (m *Metrics) RecordRequest(method string, durationMs int64, status string) {
 	m.RequestsTotal.WithLabelValues(method, status).Inc()
@@ -118,6 +172,16 @@ func (m *Metrics) RecordPanic(method, panicMsg string) {
 		panicMsg = panicMsg[:100] + "..."
 	}
 	m.PanicsTotal.WithLabelValues(method, panicMsg).Inc()
+}
+
+// RecordHTTPRequest records an HTTP request with its duration and status
+func (m *Metrics) RecordHTTPRequest(method, path string, durationMs int64, status string) {
+	if m.HTTPRequestsTotal != nil {
+		m.HTTPRequestsTotal.WithLabelValues(method, path, status).Inc()
+	}
+	if m.HTTPRequestDuration != nil {
+		m.HTTPRequestDuration.WithLabelValues(method, path, status).Observe(float64(durationMs) / 1000.0)
+	}
 }
 
 // updateResourceMetrics updates memory and CPU metrics
