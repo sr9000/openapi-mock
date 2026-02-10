@@ -24,7 +24,7 @@ openapi:
 	@echo
 	@echo "===================="
 	@echo "Generating OpenAPI code..."
-	@chmod +x ./scripts/gen-openapi.sh && ./scripts/gen-openapi.sh
+	./scripts/gen-openapi.sh
 
 stub:
 	@echo

@@ -2,14 +2,14 @@
 
 ## Quick Reference
 
-| Item | Value |
-|------|-------|
-| HTTP Port | 8080 |
-| Management Port | 9000 |
-| Metrics Port | 9100 |
-| OpenAPI Specs | `specs/<name>/openapi.yaml` |
-| Generated Code | `internal/generated/<name>/` |
-| Stubs | `internal/stubs/<name>/` |
+| Item            | Value                        |
+|-----------------|------------------------------|
+| HTTP Port       | 8080                         |
+| Management Port | 9000                         |
+| Metrics Port    | 9100                         |
+| OpenAPI Specs   | `specs/<name>/openapi.yaml`  |
+| Generated Code  | `internal/generated/<name>/` |
+| Stubs           | `internal/stubs/<name>/`     |
 
 ---
 
@@ -36,7 +36,7 @@ specs/petstore/openapi.yaml → oapi-codegen → internal/generated/petstore/
 
 ### M2: Automated Stub Generation
 
-Extend `cmd/upd-stubs/` to handle OpenAPI specs alongside gRPC.
+Fix `cmd/upd-stubs/` to handle OpenAPI specs.
 
 **New files in `cmd/upd-stubs/`:**
 - `openapi_discovery.go` - Find specs in `specs/`
@@ -553,13 +553,13 @@ func (m *Metrics) RecordHTTPRequest(method, path string, durationMs int64, statu
 ### 9. Makefile Additions
 
 ```makefile
-all: proto openapi stub wire build
+all: openapi stub wire build
 
 openapi:
 	@echo "Generating OpenAPI code..."
-	@chmod +x ./scripts/gen-openapi.sh && ./scripts/gen-openapi.sh
+	./scripts/gen-openapi.sh
 
-build: build-grpc build-openapi
+build: build-openapi
 
 build-openapi:
 	go build -o bin/openapi-mock ./cmd/openapi-mock
@@ -592,7 +592,8 @@ run-openapi:
 - [ ] Add `openapi_stubs.go`
 - [ ] Add `openapi_provider.go`
 - [ ] Add `openapi_wire.go`
-- [ ] Test: `make stub` generates both gRPC and OpenAPI stubs
+- [ ] Eliminate grpc-specific code, focus on OpenAPI
+- [ ] Test: `make stub` generates OpenAPI stubs
 - [ ] Test: Custom code in stubs preserved after re-run
 
 ### M3: Production
