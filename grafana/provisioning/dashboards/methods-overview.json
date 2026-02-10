@@ -641,8 +641,8 @@
     "list": [
       {
         "current": {
-          "text": "gRPC Mock Metrics",
-          "value": "gRPC Mock Metrics"
+          "text": "OpenAPI Mock Metrics",
+          "value": "OpenAPI Mock Metrics"
         },
         "includeAll": false,
         "label": "Data Source",
@@ -661,7 +661,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "gRPC Mock - Methods Overview",
+  "title": "OpenAPI Mock - Methods Overview",
   "uid": "openapi-mock-methods-overview",
   "version": 1
 }

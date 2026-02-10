@@ -597,10 +597,10 @@ run-openapi:
 - [x] Test: Custom code in stubs preserved after re-run
 
 ### M3: Production
-- [ ] HTTP Grafana dashboard
-- [ ] Update Dockerfile with `oapi-codegen`
-- [ ] Update docker-compose
-- [ ] README updates
+- [x] HTTP Grafana dashboard
+- [x] Update Dockerfile with `oapi-codegen`
+- [x] Update docker-compose
+- [x] README updates
 
 ---
 

@@ -38,15 +38,18 @@ func (h *PetsHandlers) CreatePet(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[req_id=%s] [PetsHandlers] CreatePet", reqID)
 	}
 
+	var pet gen.NewPet
+	json.NewDecoder(r.Body).Decode(&pet)
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	json.NewEncoder(w).Encode(gen.Pet{Id: 123, Name: pet.Name, Tag: pet.Tag})
 }
 
 func (h *PetsHandlers) DeletePet(w http.ResponseWriter, r *http.Request, petId int64) {
 	if h.EnableLogging {
 		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] DeletePet", reqID)
+		log.Printf("[req_id=%s] [PetsHandlers] DeletePet petId=%d", reqID, petId)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -55,9 +58,9 @@ func (h *PetsHandlers) DeletePet(w http.ResponseWriter, r *http.Request, petId i
 func (h *PetsHandlers) GetPetById(w http.ResponseWriter, r *http.Request, petId int64) {
 	if h.EnableLogging {
 		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] GetPetById", reqID)
+		log.Printf("[req_id=%s] [PetsHandlers] GetPetById petId=%d", reqID, petId)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	json.NewEncoder(w).Encode(gen.Pet{Id: petId, Name: "Mock Pet"})
 }

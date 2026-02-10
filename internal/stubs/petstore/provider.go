@@ -29,10 +29,10 @@ func (c *CompositeHandlers) CreatePet(w http.ResponseWriter, r *http.Request) {
 	c.pets.CreatePet(w, r)
 }
 
-func (c *CompositeHandlers) GetPetById(w http.ResponseWriter, r *http.Request, petId int64) {
-	c.pets.GetPetById(w, r, petId)
-}
-
 func (c *CompositeHandlers) DeletePet(w http.ResponseWriter, r *http.Request, petId int64) {
 	c.pets.DeletePet(w, r, petId)
+}
+
+func (c *CompositeHandlers) GetPetById(w http.ResponseWriter, r *http.Request, petId int64) {
+	c.pets.GetPetById(w, r, petId)
 }

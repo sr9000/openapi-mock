@@ -24,7 +24,6 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	fmt.Fprintf(&buf, "package app\n\n")
 
 	fmt.Fprintf(&buf, "import (\n")
-	fmt.Fprintf(&buf, "\t\"net/http\"\n\n")
 	fmt.Fprintf(&buf, "\t\"github.com/go-chi/chi/v5\"\n")
 	fmt.Fprintf(&buf, "\t\"github.com/google/wire\"\n\n")
 
