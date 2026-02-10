@@ -16,6 +16,22 @@ func NewPetsHandlers(enableLogging bool) *PetsHandlers {
 	return &PetsHandlers{EnableLogging: enableLogging}
 }
 
+func (h *PetsHandlers) ListPets(w http.ResponseWriter, r *http.Request, params gen.ListPetsParams) {
+	if h.EnableLogging {
+		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
+		log.Printf("[req_id=%s] [PetsHandlers] ListPets", reqID)
+	}
+
+	// CUSTOM: Return realistic mock pets
+	pets := []gen.Pet{
+		{Id: 1, Name: "Fluffy"},
+		{Id: 2, Name: "Buddy"},
+		{Id: 3, Name: "Max"},
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(pets)
+}
+
 func (h *PetsHandlers) CreatePet(w http.ResponseWriter, r *http.Request) {
 	if h.EnableLogging {
 		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
@@ -25,16 +41,6 @@ func (h *PetsHandlers) CreatePet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-}
-
-func (h *PetsHandlers) ListPets(w http.ResponseWriter, r *http.Request, params gen.ListPetsParams) {
-	if h.EnableLogging {
-		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] ListPets", reqID)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode([]gen.Pet{})
 }
 
 func (h *PetsHandlers) DeletePet(w http.ResponseWriter, r *http.Request, petId int64) {

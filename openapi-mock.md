@@ -587,14 +587,14 @@ run-openapi:
 - [x] Test: `curl http://localhost:9000/logs`
 
 ### M2: Auto Generation
-- [ ] Refactor `cmd/upd-stubs/main.go` into separate files
-- [ ] Add `openapi_discovery.go`
-- [ ] Add `openapi_stubs.go`
-- [ ] Add `openapi_provider.go`
-- [ ] Add `openapi_wire.go`
-- [ ] Eliminate grpc-specific code, focus on OpenAPI
-- [ ] Test: `make stub` generates OpenAPI stubs
-- [ ] Test: Custom code in stubs preserved after re-run
+- [x] Refactor `cmd/upd-stubs/main.go` into separate files
+- [x] Add `openapi_discovery.go`
+- [x] Add `openapi_stubs.go`
+- [x] Add `openapi_provider.go`
+- [x] Add `openapi_wire.go`
+- [x] Eliminate grpc-specific code, focus on OpenAPI
+- [x] Test: `make stub` generates OpenAPI stubs
+- [x] Test: Custom code in stubs preserved after re-run
 
 ### M3: Production
 - [ ] HTTP Grafana dashboard

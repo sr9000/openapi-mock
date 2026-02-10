@@ -15,10 +15,12 @@ RUN apk add --no-cache bash python3 make git build-base protobuf protobuf-dev
 #    - protoc plugins for generation
 #    - wire for dependency injection
 #    - air for hot-reloading (watcher)
+#    - oapi-codegen for OpenAPI code generation
 RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
     go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest && \
     go install github.com/google/wire/cmd/wire@latest && \
-    go install github.com/air-verse/air@latest
+    go install github.com/air-verse/air@latest && \
+    go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
 
 WORKDIR /app
 
@@ -78,12 +80,18 @@ WORKDIR /home/app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 
-# Copy only the compiled binary from the builder stage
+# Copy compiled binaries from the builder stage
 COPY --from=builder /app/bin/grpc-mock .
+COPY --from=builder /app/bin/openapi-mock .
 
-# Default configuration
-ENV PORT=50051
-EXPOSE 50051
+# Default configuration (gRPC)
+ENV GRPC_PORT=50051
+ENV HTTP_PORT=8080
+ENV MGMT_PORT=9000
+ENV METRICS_PORT=9100
 
+EXPOSE 50051 8080 9000 9100
+
+# Default to grpc-mock, can be overridden to openapi-mock
 ENTRYPOINT ["./grpc-mock"]
 CMD ["run"]

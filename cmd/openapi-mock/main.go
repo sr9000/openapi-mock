@@ -88,7 +88,7 @@ func runServer(cfg Config) error {
 	// Build handlers
 	pets := stubs.NewPetsHandlers(cfg.EnableLogging)
 	def := stubs.NewDefaultHandlers(cfg.EnableLogging)
-	handlers := stubs.NewCompositeHandlers(pets, def)
+	handlers := stubs.NewCompositeHandlers(def, pets)
 
 	// Build router
 	r := chi.NewRouter()

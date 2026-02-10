@@ -33,8 +33,10 @@ Thumbs.db
 *.log
 
 /internal/genproto/*
+/internal/generated/*
 /internal/stubs/*
 /protos/*
+/specs/*
 
 !/internal/genproto/echo
 !/internal/stubs/echo
@@ -44,3 +46,7 @@ Thumbs.db
 !/internal/genproto/complex
 !/internal/stubs/complex
 !/protos/complex
+
+!/internal/generated/petstore
+!/internal/stubs/petstore
+!/specs/petstore

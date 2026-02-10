@@ -21,12 +21,12 @@ func (c *CompositeHandlers) HealthCheck(w http.ResponseWriter, r *http.Request) 
 	c.default_.HealthCheck(w, r)
 }
 
-func (c *CompositeHandlers) CreatePet(w http.ResponseWriter, r *http.Request) {
-	c.pets.CreatePet(w, r)
-}
-
 func (c *CompositeHandlers) ListPets(w http.ResponseWriter, r *http.Request, params gen.ListPetsParams) {
 	c.pets.ListPets(w, r, params)
+}
+
+func (c *CompositeHandlers) CreatePet(w http.ResponseWriter, r *http.Request) {
+	c.pets.CreatePet(w, r)
 }
 
 func (c *CompositeHandlers) DeletePet(w http.ResponseWriter, r *http.Request, petId int64) {

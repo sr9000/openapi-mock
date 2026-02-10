@@ -40,6 +40,7 @@ type stubPkg struct {
 }
 
 func main() {
+	// Process gRPC services
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports,
 		Dir:  ".",
@@ -112,19 +113,41 @@ func main() {
 		pkgMap[outDir].Services = append(pkgMap[outDir].Services, svc)
 	}
 
-	// Generate stubs
+	// Generate gRPC stubs
 	for _, sp := range pkgMap {
 		if err := generateStubPackage(sp.OutDir, sp.PkgName, sp.Services); err != nil {
 			log.Fatalf("failed to generate stubs for %s: %v", sp.OutDir, err)
 		}
 	}
 
-	// Generate wire.go
+	// Generate gRPC wire.go
 	if err := generateWireFile(pkgMap); err != nil {
 		log.Fatalf("failed to generate wire.go: %v", err)
 	}
 
-	log.Println("stubs generated successfully")
+	log.Println("gRPC stubs generated successfully")
+
+	// Process OpenAPI specs
+	openapiSpecs, err := discoverOpenAPISpecs()
+	if err != nil {
+		log.Fatalf("failed to discover OpenAPI specs: %v", err)
+	}
+
+	if len(openapiSpecs) > 0 {
+		for _, spec := range openapiSpecs {
+			log.Printf("Processing OpenAPI spec: %s", spec.SpecPath)
+			if err := generateOpenAPIStubs(spec); err != nil {
+				log.Fatalf("failed to generate OpenAPI stubs for %s: %v", spec.SpecPath, err)
+			}
+		}
+
+		// Generate OpenAPI wire file
+		if err := generateOpenAPIWireFile(openapiSpecs); err != nil {
+			log.Fatalf("failed to generate OpenAPI wire file: %v", err)
+		}
+
+		log.Println("OpenAPI stubs generated successfully")
+	}
 }
 
 func generateStubPackage(outDir, pkgName string, services []serviceInfo) error {
@@ -525,6 +548,24 @@ func toPascalCase(s string) string {
 		}
 	}
 	return string(result)
+}
+
+func writeImports(buf *bytes.Buffer, imports map[string]string) {
+	fmt.Fprintf(buf, "import (\n")
+	sortedImports := make([]string, 0, len(imports))
+	for imp := range imports {
+		sortedImports = append(sortedImports, imp)
+	}
+	sort.Strings(sortedImports)
+	for _, imp := range sortedImports {
+		alias := imports[imp]
+		if alias != "" {
+			fmt.Fprintf(buf, "\t%s %q\n", alias, imp)
+		} else {
+			fmt.Fprintf(buf, "\t%q\n", imp)
+		}
+	}
+	fmt.Fprintf(buf, ")\n")
 }
 
 func generateWireFile(pkgMap map[string]*stubPkg) error {
