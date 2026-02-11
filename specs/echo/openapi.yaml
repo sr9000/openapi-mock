@@ -1,0 +1,103 @@
+openapi: "3.0.0"
+info:
+  title: Echo API
+  version: "1.0.0"
+  description: Simple echo service that returns back what you send
+paths:
+  /echo:
+    post:
+      tags: [echo]
+      operationId: Echo
+      summary: Echo back the request body
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EchoRequest'
+          text/plain:
+            schema:
+              type: string
+      responses:
+        '200':
+          description: Echoed response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EchoResponse'
+  /echo/{message}:
+    get:
+      tags: [echo]
+      operationId: EchoPath
+      summary: Echo back a message from the path
+      parameters:
+        - name: message
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Echoed message
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EchoResponse'
+  /echo/headers:
+    get:
+      tags: [echo]
+      operationId: EchoHeaders
+      summary: Echo back request headers
+      responses:
+        '200':
+          description: Request headers echoed back
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HeadersResponse'
+  /status:
+    get:
+      tags: [status]
+      operationId: GetStatus
+      summary: Get service status
+      responses:
+        '200':
+          description: Service status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+components:
+  schemas:
+    EchoRequest:
+      type: object
+      properties:
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+    EchoResponse:
+      type: object
+      required: [echo]
+      properties:
+        echo:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+    HeadersResponse:
+      type: object
+      properties:
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+        uptime:
+          type: string

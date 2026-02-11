@@ -32,21 +32,14 @@ Thumbs.db
 # Logs
 *.log
 
-/internal/genproto/*
 /internal/generated/*
 /internal/stubs/*
-/protos/*
 /specs/*
-
-!/internal/genproto/echo
-!/internal/stubs/echo
-!/protos/echo
-
-
-!/internal/genproto/complex
-!/internal/stubs/complex
-!/protos/complex
 
 !/internal/generated/petstore
 !/internal/stubs/petstore
 !/specs/petstore
+
+!/internal/generated/echo
+!/internal/stubs/echo
+!/specs/echo

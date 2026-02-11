@@ -83,14 +83,16 @@ func runServer(cfg Config) error {
 		mgmt.New(rec, cfg.MgmtPort).Start()
 	}
 
+	// Build middlewares
+	middlewares := []func(http.Handler) http.Handler{
+		middleware.Recording(rec, m, cfg.EnableLogging),
+	}
+
 	// Build app via wire (handles all routing)
-	httpApp, err := app.InitializeHTTPApp(cfg.EnableLogging)
+	httpApp, err := app.InitializeHTTPApp(middlewares, cfg.EnableLogging)
 	if err != nil {
 		return fmt.Errorf("failed to initialize app: %w", err)
 	}
-
-	// Apply middleware
-	httpApp.Router.Use(middleware.Recording(rec, m, cfg.EnableLogging))
 
 	server := &http.Server{Addr: addr, Handler: httpApp.Router}
 

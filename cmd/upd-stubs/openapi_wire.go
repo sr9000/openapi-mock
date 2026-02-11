@@ -24,6 +24,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	fmt.Fprintf(&buf, "package app\n\n")
 
 	fmt.Fprintf(&buf, "import (\n")
+	fmt.Fprintf(&buf, "\t\"net/http\"\n\n")
 	fmt.Fprintf(&buf, "\t\"github.com/go-chi/chi/v5\"\n")
 	fmt.Fprintf(&buf, "\t\"github.com/google/wire\"\n\n")
 
@@ -103,7 +104,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	}
 
 	// Generate router provider
-	fmt.Fprintf(&buf, "func provideHTTPRouter(")
+	fmt.Fprintf(&buf, "func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, ")
 	var routerParams []string
 	for i, imp := range imports {
 		spec := specs[i]
@@ -111,6 +112,9 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	}
 	fmt.Fprintf(&buf, "%s) *chi.Mux {\n", strings.Join(routerParams, ", "))
 	fmt.Fprintf(&buf, "\tr := chi.NewRouter()\n")
+	fmt.Fprintf(&buf, "\tfor _, mw := range middlewares {\n")
+	fmt.Fprintf(&buf, "\t\tr.Use(mw)\n")
+	fmt.Fprintf(&buf, "\t}\n")
 	for i, imp := range imports {
 		spec := specs[i]
 		fmt.Fprintf(&buf, "\t%s.HandlerFromMux(%s, r)\n", imp.GenAlias, spec.PkgName+"Handler")
@@ -144,7 +148,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	fmt.Fprintf(&buf, ")\n\n")
 
 	// Generate InitializeHTTPApp
-	fmt.Fprintf(&buf, "func InitializeHTTPApp(enableLogging bool) (*HTTPApp, error) {\n")
+	fmt.Fprintf(&buf, "func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, enableLogging bool) (*HTTPApp, error) {\n")
 	fmt.Fprintf(&buf, "\twire.Build(HTTPProviderSet)\n")
 	fmt.Fprintf(&buf, "\treturn nil, nil\n")
 	fmt.Fprintf(&buf, "}\n")
