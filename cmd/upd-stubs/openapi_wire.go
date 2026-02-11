@@ -25,11 +25,10 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 
 	fmt.Fprintf(&buf, "import (\n")
 	fmt.Fprintf(&buf, "\t\"net/http\"\n\n")
-	fmt.Fprintf(&buf, "\t\"github.com/google/wire\"\n")
-	fmt.Fprintf(&buf, "\t\"github.com/labstack/echo/v4\"\n")
-	fmt.Fprintf(&buf, "\tmw \"github.com/labstack/echo/v4/middleware\"\n\n")
+	fmt.Fprintf(&buf, "\t\"github.com/go-chi/chi/v5\"\n")
+	fmt.Fprintf(&buf, "\t\"github.com/google/wire\"\n\n")
 
-	// Import all stubs and generated packages
+	// Import all generated packages first, then stubs
 	type specImport struct {
 		StubAlias string
 		StubPath  string
@@ -49,7 +48,6 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		})
 	}
 
-	// Sort for consistent output
 	sort.Slice(imports, func(i, j int) bool {
 		return imports[i].StubPath < imports[j].StubPath
 	})
@@ -64,11 +62,10 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 
 	fmt.Fprintf(&buf, ")\n\n")
 
-	// Generate HTTPApp struct
+	// HTTPApp struct
 	fmt.Fprintf(&buf, "type HTTPApp struct {\n")
-	fmt.Fprintf(&buf, "\tEcho *echo.Echo\n")
+	fmt.Fprintf(&buf, "\tRouter *chi.Mux\n")
 	for _, imp := range imports {
-		// Find the spec
 		var spec *openapiSpec
 		for _, s := range specs {
 			if s.StubPkgPath == imp.StubPath {
@@ -88,11 +85,10 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	}
 	fmt.Fprintf(&buf, "}\n\n")
 
-	// Generate provider functions for each spec
+	// Provider functions: per-spec strict handlers
 	for i, imp := range imports {
 		spec := specs[i]
 
-		// Provider for composite handlers
 		fmt.Fprintf(&buf, "func provide%sHandlers(", toPascalCase(spec.PkgName))
 		var params []string
 		for _, tag := range spec.getSortedTags() {
@@ -100,35 +96,33 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 			params = append(params, fmt.Sprintf("%s *%s.%s", sanitizeFieldName(tag), imp.StubAlias, structName))
 		}
 		fmt.Fprintf(&buf, "%s) %s.ServerInterface {\n", strings.Join(params, ", "), imp.GenAlias)
-		fmt.Fprintf(&buf, "\treturn %s.NewCompositeHandlers(%s)\n", imp.StubAlias, extractFieldNames(params))
+		fmt.Fprintf(&buf, "\tstrict := %s.NewCompositeHandlers(%s)\n", imp.StubAlias, extractFieldNames(params))
+		fmt.Fprintf(&buf, "\treturn %s.NewStrictHandler(strict, nil)\n", imp.GenAlias)
 		fmt.Fprintf(&buf, "}\n\n")
 	}
 
-	// Generate Echo engine provider
-	fmt.Fprintf(&buf, "func provideHTTPEcho(middlewares []func(http.Handler) http.Handler, ")
+	// Router provider
+	fmt.Fprintf(&buf, "func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, ")
 	var routerParams []string
 	for i, imp := range imports {
 		spec := specs[i]
 		routerParams = append(routerParams, fmt.Sprintf("%s %s.ServerInterface", spec.PkgName+"Handler", imp.GenAlias))
 	}
-	fmt.Fprintf(&buf, "%s) *echo.Echo {\n", strings.Join(routerParams, ", "))
-	fmt.Fprintf(&buf, "\te := echo.New()\n")
-	fmt.Fprintf(&buf, "\tfor _, mwHTTP := range middlewares {\n")
-	fmt.Fprintf(&buf, "\t\te.Use(echo.WrapMiddleware(mwHTTP))\n")
+	fmt.Fprintf(&buf, "%s) *chi.Mux {\n", strings.Join(routerParams, ", "))
+	fmt.Fprintf(&buf, "\tr := chi.NewRouter()\n")
+	fmt.Fprintf(&buf, "\tfor _, mw := range middlewares {\n")
+	fmt.Fprintf(&buf, "\t\tr.Use(mw)\n")
 	fmt.Fprintf(&buf, "\t}\n")
-	fmt.Fprintf(&buf, "\te.HideBanner = true\n")
-	fmt.Fprintf(&buf, "\te.Use(mw.Recover())\n")
 	for i, imp := range imports {
 		spec := specs[i]
-		fmt.Fprintf(&buf, "\t%s.RegisterHandlers(e, %s)\n", imp.GenAlias, spec.PkgName+"Handler")
+		fmt.Fprintf(&buf, "\t%s.HandlerFromMux(%s, r)\n", imp.GenAlias, spec.PkgName+"Handler")
 	}
-	fmt.Fprintf(&buf, "\treturn e\n")
+	fmt.Fprintf(&buf, "\treturn r\n")
 	fmt.Fprintf(&buf, "}\n\n")
 
-	// Generate ProviderSet
+	// ProviderSet
 	fmt.Fprintf(&buf, "var HTTPProviderSet = wire.NewSet(\n")
 	for _, imp := range imports {
-		// Find the spec
 		var spec *openapiSpec
 		for _, s := range specs {
 			if s.StubPkgPath == imp.StubPath {
@@ -139,18 +133,17 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		if spec == nil {
 			continue
 		}
-
 		for _, tag := range spec.getSortedTags() {
 			newFunc := getNewHandlerFuncName(tag)
 			fmt.Fprintf(&buf, "\t%s.%s,\n", imp.StubAlias, newFunc)
 		}
 		fmt.Fprintf(&buf, "\tprovide%sHandlers,\n", toPascalCase(spec.PkgName))
 	}
-	fmt.Fprintf(&buf, "\tprovideHTTPEcho,\n")
+	fmt.Fprintf(&buf, "\tprovideHTTPRouter,\n")
 	fmt.Fprintf(&buf, "\twire.Struct(new(HTTPApp), \"*\"),\n")
 	fmt.Fprintf(&buf, ")\n\n")
 
-	// Generate InitializeHTTPApp
+	// InitializeHTTPApp
 	fmt.Fprintf(&buf, "func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, enableLogging bool) (*HTTPApp, error) {\n")
 	fmt.Fprintf(&buf, "\twire.Build(HTTPProviderSet)\n")
 	fmt.Fprintf(&buf, "\treturn nil, nil\n")

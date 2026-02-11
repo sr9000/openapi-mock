@@ -6,9 +6,8 @@ package app
 import (
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/google/wire"
-	"github.com/labstack/echo/v4"
-	mw "github.com/labstack/echo/v4/middleware"
 
 	echogen "openapi-mock/internal/generated/echo"
 	petstoregen "openapi-mock/internal/generated/petstore"
@@ -18,7 +17,7 @@ import (
 )
 
 type HTTPApp struct {
-	Echo            *echo.Echo
+	Router          *chi.Mux
 	EchoEcho        *echostub.EchoHandlers
 	EchoStatus      *echostub.StatusHandlers
 	PetstoreDefault *petstorestub.DefaultHandlers
@@ -26,23 +25,23 @@ type HTTPApp struct {
 }
 
 func provideEchoHandlers(echo *echostub.EchoHandlers, status *echostub.StatusHandlers) echogen.ServerInterface {
-	return echostub.NewCompositeHandlers(echo, status)
+	strict := echostub.NewCompositeHandlers(echo, status)
+	return echogen.NewStrictHandler(strict, nil)
 }
 
 func providePetstoreHandlers(default_ *petstorestub.DefaultHandlers, pets *petstorestub.PetsHandlers) petstoregen.ServerInterface {
-	return petstorestub.NewCompositeHandlers(default_, pets)
+	strict := petstorestub.NewCompositeHandlers(default_, pets)
+	return petstoregen.NewStrictHandler(strict, nil)
 }
 
-func provideHTTPEcho(middlewares []func(http.Handler) http.Handler, echoHandler echogen.ServerInterface, petstoreHandler petstoregen.ServerInterface) *echo.Echo {
-	e := echo.New()
-	for _, mwHTTP := range middlewares {
-		e.Use(echo.WrapMiddleware(mwHTTP))
+func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, echoHandler echogen.ServerInterface, petstoreHandler petstoregen.ServerInterface) *chi.Mux {
+	r := chi.NewRouter()
+	for _, mw := range middlewares {
+		r.Use(mw)
 	}
-	e.HideBanner = true
-	e.Use(mw.Recover())
-	echogen.RegisterHandlers(e, echoHandler)
-	petstoregen.RegisterHandlers(e, petstoreHandler)
-	return e
+	echogen.HandlerFromMux(echoHandler, r)
+	petstoregen.HandlerFromMux(petstoreHandler, r)
+	return r
 }
 
 var HTTPProviderSet = wire.NewSet(
@@ -52,7 +51,7 @@ var HTTPProviderSet = wire.NewSet(
 	petstorestub.NewDefaultHandlers,
 	petstorestub.NewPetsHandlers,
 	providePetstoreHandlers,
-	provideHTTPEcho,
+	provideHTTPRouter,
 	wire.Struct(new(HTTPApp), "*"),
 )
 

@@ -5,6 +5,7 @@ go 1.25
 require (
 	github.com/caarlos0/env/v11 v11.3.1
 	github.com/getkin/kin-openapi v0.133.0
+	github.com/go-chi/chi/v5 v5.2.3
 	github.com/google/wire v0.7.0
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/oapi-codegen/runtime v1.1.2

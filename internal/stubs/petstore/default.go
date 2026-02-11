@@ -1,11 +1,10 @@
 package petstore
 
 import (
+	"context"
 	"log"
-	"net/http"
+	gen "openapi-mock/internal/generated/petstore"
 	"openapi-mock/pkg/ctxkeys"
-
-	"github.com/labstack/echo/v4"
 )
 
 type DefaultHandlers struct {
@@ -16,11 +15,13 @@ func NewDefaultHandlers(enableLogging bool) *DefaultHandlers {
 	return &DefaultHandlers{EnableLogging: enableLogging}
 }
 
-func (h *DefaultHandlers) HealthCheck(ctx echo.Context) error {
+func (h *DefaultHandlers) HealthCheck(ctx context.Context, request gen.HealthCheckRequestObject) (gen.HealthCheckResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
+		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
 		log.Printf("[req_id=%s] [DefaultHandlers] HealthCheck", reqID)
 	}
 
-	return ctx.JSON(http.StatusOK, map[string]string{"status": "ok"})
+	_ = request
+
+	return gen.HealthCheck200Response{}, nil
 }

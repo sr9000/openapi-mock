@@ -2,7 +2,7 @@
 package echo
 
 import (
-	"github.com/labstack/echo/v4"
+	"context"
 	gen "openapi-mock/internal/generated/echo"
 )
 
@@ -11,24 +11,24 @@ type CompositeHandlers struct {
 	status *StatusHandlers
 }
 
-func NewCompositeHandlers(echo *EchoHandlers, status *StatusHandlers) gen.ServerInterface {
+func NewCompositeHandlers(echo *EchoHandlers, status *StatusHandlers) gen.StrictServerInterface {
 	return &CompositeHandlers{echo: echo, status: status}
 }
 
-var _ gen.ServerInterface = (*CompositeHandlers)(nil)
+var _ gen.StrictServerInterface = (*CompositeHandlers)(nil)
 
-func (c *CompositeHandlers) Echo(ctx echo.Context) error {
-	return c.echo.Echo(ctx)
+func (c *CompositeHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) (gen.EchoResponseObject, error) {
+	return c.echo.Echo(ctx, request)
 }
 
-func (c *CompositeHandlers) EchoHeaders(ctx echo.Context) error {
-	return c.echo.EchoHeaders(ctx)
+func (c *CompositeHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersRequestObject) (gen.EchoHeadersResponseObject, error) {
+	return c.echo.EchoHeaders(ctx, request)
 }
 
-func (c *CompositeHandlers) EchoPath(ctx echo.Context, message string) error {
-	return c.echo.EchoPath(ctx, message)
+func (c *CompositeHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequestObject) (gen.EchoPathResponseObject, error) {
+	return c.echo.EchoPath(ctx, request)
 }
 
-func (c *CompositeHandlers) GetStatus(ctx echo.Context) error {
-	return c.status.GetStatus(ctx)
+func (c *CompositeHandlers) GetStatus(ctx context.Context, request gen.GetStatusRequestObject) (gen.GetStatusResponseObject, error) {
+	return c.status.GetStatus(ctx, request)
 }

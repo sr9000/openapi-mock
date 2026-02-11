@@ -4,108 +4,492 @@
 package echo
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 
-	"github.com/labstack/echo/v4"
+	"github.com/go-chi/chi/v5"
 	"github.com/oapi-codegen/runtime"
+	strictnethttp "github.com/oapi-codegen/runtime/strictmiddleware/nethttp"
 )
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Echo back the request body
 	// (POST /echo)
-	Echo(ctx echo.Context) error
+	Echo(w http.ResponseWriter, r *http.Request)
 	// Echo back request headers
 	// (GET /echo/headers)
-	EchoHeaders(ctx echo.Context) error
+	EchoHeaders(w http.ResponseWriter, r *http.Request)
 	// Echo back a message from the path
 	// (GET /echo/{message})
-	EchoPath(ctx echo.Context, message string) error
+	EchoPath(w http.ResponseWriter, r *http.Request, message string)
 	// Get service status
 	// (GET /status)
-	GetStatus(ctx echo.Context) error
+	GetStatus(w http.ResponseWriter, r *http.Request)
 }
 
-// ServerInterfaceWrapper converts echo contexts to parameters.
+// Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
+
+type Unimplemented struct{}
+
+// Echo back the request body
+// (POST /echo)
+func (_ Unimplemented) Echo(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Echo back request headers
+// (GET /echo/headers)
+func (_ Unimplemented) EchoHeaders(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Echo back a message from the path
+// (GET /echo/{message})
+func (_ Unimplemented) EchoPath(w http.ResponseWriter, r *http.Request, message string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get service status
+// (GET /status)
+func (_ Unimplemented) GetStatus(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
-	Handler ServerInterface
+	Handler            ServerInterface
+	HandlerMiddlewares []MiddlewareFunc
+	ErrorHandlerFunc   func(w http.ResponseWriter, r *http.Request, err error)
 }
 
-// Echo converts echo context to params.
-func (w *ServerInterfaceWrapper) Echo(ctx echo.Context) error {
-	var err error
+type MiddlewareFunc func(http.Handler) http.Handler
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.Echo(ctx)
-	return err
+// Echo operation middleware
+func (siw *ServerInterfaceWrapper) Echo(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Echo(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
 }
 
-// EchoHeaders converts echo context to params.
-func (w *ServerInterfaceWrapper) EchoHeaders(ctx echo.Context) error {
-	var err error
+// EchoHeaders operation middleware
+func (siw *ServerInterfaceWrapper) EchoHeaders(w http.ResponseWriter, r *http.Request) {
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.EchoHeaders(ctx)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EchoHeaders(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
 }
 
-// EchoPath converts echo context to params.
-func (w *ServerInterfaceWrapper) EchoPath(ctx echo.Context) error {
+// EchoPath operation middleware
+func (siw *ServerInterfaceWrapper) EchoPath(w http.ResponseWriter, r *http.Request) {
+
 	var err error
+
 	// ------------- Path parameter "message" -------------
 	var message string
 
-	err = runtime.BindStyledParameterWithOptions("simple", "message", ctx.Param("message"), &message, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "message", chi.URLParam(r, "message"), &message, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter message: %s", err))
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "message", Err: err})
+		return
 	}
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.EchoPath(ctx, message)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EchoPath(w, r, message)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
 }
 
-// GetStatus converts echo context to params.
-func (w *ServerInterfaceWrapper) GetStatus(ctx echo.Context) error {
-	var err error
+// GetStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetStatus(w http.ResponseWriter, r *http.Request) {
 
-	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetStatus(ctx)
-	return err
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetStatus(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
 }
 
-// This is a simple interface which specifies echo.Route addition functions which
-// are present on both echo.Echo and echo.Group, since we want to allow using
-// either of them for path registration
-type EchoRouter interface {
-	CONNECT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	DELETE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	GET(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	OPTIONS(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PATCH(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	POST(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	PUT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
-	TRACE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+type UnescapedCookieParamError struct {
+	ParamName string
+	Err       error
 }
 
-// RegisterHandlers adds each server route to the EchoRouter.
-func RegisterHandlers(router EchoRouter, si ServerInterface) {
-	RegisterHandlersWithBaseURL(router, si, "")
+func (e *UnescapedCookieParamError) Error() string {
+	return fmt.Sprintf("error unescaping cookie parameter '%s'", e.ParamName)
 }
 
-// Registers handlers, and prepends BaseURL to the paths, so that the paths
-// can be served under a prefix.
-func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL string) {
+func (e *UnescapedCookieParamError) Unwrap() error {
+	return e.Err
+}
 
+type UnmarshalingParamError struct {
+	ParamName string
+	Err       error
+}
+
+func (e *UnmarshalingParamError) Error() string {
+	return fmt.Sprintf("Error unmarshaling parameter %s as JSON: %s", e.ParamName, e.Err.Error())
+}
+
+func (e *UnmarshalingParamError) Unwrap() error {
+	return e.Err
+}
+
+type RequiredParamError struct {
+	ParamName string
+}
+
+func (e *RequiredParamError) Error() string {
+	return fmt.Sprintf("Query argument %s is required, but not found", e.ParamName)
+}
+
+type RequiredHeaderError struct {
+	ParamName string
+	Err       error
+}
+
+func (e *RequiredHeaderError) Error() string {
+	return fmt.Sprintf("Header parameter %s is required, but not found", e.ParamName)
+}
+
+func (e *RequiredHeaderError) Unwrap() error {
+	return e.Err
+}
+
+type InvalidParamFormatError struct {
+	ParamName string
+	Err       error
+}
+
+func (e *InvalidParamFormatError) Error() string {
+	return fmt.Sprintf("Invalid format for parameter %s: %s", e.ParamName, e.Err.Error())
+}
+
+func (e *InvalidParamFormatError) Unwrap() error {
+	return e.Err
+}
+
+type TooManyValuesForParamError struct {
+	ParamName string
+	Count     int
+}
+
+func (e *TooManyValuesForParamError) Error() string {
+	return fmt.Sprintf("Expected one value for %s, got %d", e.ParamName, e.Count)
+}
+
+// Handler creates http.Handler with routing matching OpenAPI spec.
+func Handler(si ServerInterface) http.Handler {
+	return HandlerWithOptions(si, ChiServerOptions{})
+}
+
+type ChiServerOptions struct {
+	BaseURL          string
+	BaseRouter       chi.Router
+	Middlewares      []MiddlewareFunc
+	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+// HandlerFromMux creates http.Handler with routing matching OpenAPI spec based on the provided mux.
+func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
+	return HandlerWithOptions(si, ChiServerOptions{
+		BaseRouter: r,
+	})
+}
+
+func HandlerFromMuxWithBaseURL(si ServerInterface, r chi.Router, baseURL string) http.Handler {
+	return HandlerWithOptions(si, ChiServerOptions{
+		BaseURL:    baseURL,
+		BaseRouter: r,
+	})
+}
+
+// HandlerWithOptions creates http.Handler with additional options
+func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handler {
+	r := options.BaseRouter
+
+	if r == nil {
+		r = chi.NewRouter()
+	}
+	if options.ErrorHandlerFunc == nil {
+		options.ErrorHandlerFunc = func(w http.ResponseWriter, r *http.Request, err error) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+	}
 	wrapper := ServerInterfaceWrapper{
-		Handler: si,
+		Handler:            si,
+		HandlerMiddlewares: options.Middlewares,
+		ErrorHandlerFunc:   options.ErrorHandlerFunc,
 	}
 
-	router.POST(baseURL+"/echo", wrapper.Echo)
-	router.GET(baseURL+"/echo/headers", wrapper.EchoHeaders)
-	router.GET(baseURL+"/echo/:message", wrapper.EchoPath)
-	router.GET(baseURL+"/status", wrapper.GetStatus)
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/echo", wrapper.Echo)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/echo/headers", wrapper.EchoHeaders)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/echo/{message}", wrapper.EchoPath)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/status", wrapper.GetStatus)
+	})
 
+	return r
+}
+
+type EchoRequestObject struct {
+	JSONBody *EchoJSONRequestBody
+	TextBody *EchoTextRequestBody
+}
+
+type EchoResponseObject interface {
+	VisitEchoResponse(w http.ResponseWriter) error
+}
+
+type Echo200JSONResponse EchoResponse
+
+func (response Echo200JSONResponse) VisitEchoResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EchoHeadersRequestObject struct {
+}
+
+type EchoHeadersResponseObject interface {
+	VisitEchoHeadersResponse(w http.ResponseWriter) error
+}
+
+type EchoHeaders200JSONResponse HeadersResponse
+
+func (response EchoHeaders200JSONResponse) VisitEchoHeadersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EchoPathRequestObject struct {
+	Message string `json:"message"`
+}
+
+type EchoPathResponseObject interface {
+	VisitEchoPathResponse(w http.ResponseWriter) error
+}
+
+type EchoPath200JSONResponse EchoResponse
+
+func (response EchoPath200JSONResponse) VisitEchoPathResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetStatusRequestObject struct {
+}
+
+type GetStatusResponseObject interface {
+	VisitGetStatusResponse(w http.ResponseWriter) error
+}
+
+type GetStatus200JSONResponse StatusResponse
+
+func (response GetStatus200JSONResponse) VisitGetStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+// StrictServerInterface represents all server handlers.
+type StrictServerInterface interface {
+	// Echo back the request body
+	// (POST /echo)
+	Echo(ctx context.Context, request EchoRequestObject) (EchoResponseObject, error)
+	// Echo back request headers
+	// (GET /echo/headers)
+	EchoHeaders(ctx context.Context, request EchoHeadersRequestObject) (EchoHeadersResponseObject, error)
+	// Echo back a message from the path
+	// (GET /echo/{message})
+	EchoPath(ctx context.Context, request EchoPathRequestObject) (EchoPathResponseObject, error)
+	// Get service status
+	// (GET /status)
+	GetStatus(ctx context.Context, request GetStatusRequestObject) (GetStatusResponseObject, error)
+}
+
+type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
+type StrictMiddlewareFunc = strictnethttp.StrictHTTPMiddlewareFunc
+
+type StrictHTTPServerOptions struct {
+	RequestErrorHandlerFunc  func(w http.ResponseWriter, r *http.Request, err error)
+	ResponseErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
+}
+
+func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
+	return &strictHandler{ssi: ssi, middlewares: middlewares, options: StrictHTTPServerOptions{
+		RequestErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		},
+		ResponseErrorHandlerFunc: func(w http.ResponseWriter, r *http.Request, err error) {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		},
+	}}
+}
+
+func NewStrictHandlerWithOptions(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc, options StrictHTTPServerOptions) ServerInterface {
+	return &strictHandler{ssi: ssi, middlewares: middlewares, options: options}
+}
+
+type strictHandler struct {
+	ssi         StrictServerInterface
+	middlewares []StrictMiddlewareFunc
+	options     StrictHTTPServerOptions
+}
+
+// Echo operation middleware
+func (sh *strictHandler) Echo(w http.ResponseWriter, r *http.Request) {
+	var request EchoRequestObject
+
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+
+		var body EchoJSONRequestBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+			return
+		}
+		request.JSONBody = &body
+	}
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "text/plain") {
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't read body: %w", err))
+			return
+		}
+		body := EchoTextRequestBody(data)
+		request.TextBody = &body
+	}
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Echo(ctx, request.(EchoRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Echo")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EchoResponseObject); ok {
+		if err := validResponse.VisitEchoResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EchoHeaders operation middleware
+func (sh *strictHandler) EchoHeaders(w http.ResponseWriter, r *http.Request) {
+	var request EchoHeadersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EchoHeaders(ctx, request.(EchoHeadersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EchoHeaders")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EchoHeadersResponseObject); ok {
+		if err := validResponse.VisitEchoHeadersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EchoPath operation middleware
+func (sh *strictHandler) EchoPath(w http.ResponseWriter, r *http.Request, message string) {
+	var request EchoPathRequestObject
+
+	request.Message = message
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EchoPath(ctx, request.(EchoPathRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EchoPath")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EchoPathResponseObject); ok {
+		if err := validResponse.VisitEchoPathResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetStatus operation middleware
+func (sh *strictHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
+	var request GetStatusRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetStatus(ctx, request.(GetStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetStatus")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetStatusResponseObject); ok {
+		if err := validResponse.VisitGetStatusResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }

@@ -1,12 +1,10 @@
 package petstore
 
 import (
+	"context"
 	"log"
-	"net/http"
 	gen "openapi-mock/internal/generated/petstore"
 	"openapi-mock/pkg/ctxkeys"
-
-	"github.com/labstack/echo/v4"
 )
 
 type PetsHandlers struct {
@@ -17,49 +15,49 @@ func NewPetsHandlers(enableLogging bool) *PetsHandlers {
 	return &PetsHandlers{EnableLogging: enableLogging}
 }
 
-func (h *PetsHandlers) ListPets(ctx echo.Context, params gen.ListPetsParams) error {
+func (h *PetsHandlers) ListPets(ctx context.Context, request gen.ListPetsRequestObject) (gen.ListPetsResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
+		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
 		log.Printf("[req_id=%s] [PetsHandlers] ListPets", reqID)
 	}
 
-	// Return a basic mock payload (spec doesn't currently generate Pet schema types)
-	pets := []map[string]any{
-		{"id": 1, "name": "Fluffy"},
-		{"id": 2, "name": "Buddy"},
-		{"id": 3, "name": "Max"},
-	}
-	return ctx.JSON(http.StatusOK, pets)
+	_ = request
+
+	// ListPets200JSONResponse is an inline array type in server.gen.go, so we can
+	// safely return an empty value.
+	return gen.ListPets200JSONResponse{}, nil
 }
 
-func (h *PetsHandlers) CreatePet(ctx echo.Context) error {
+func (h *PetsHandlers) CreatePet(ctx context.Context, request gen.CreatePetRequestObject) (gen.CreatePetResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
+		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
 		log.Printf("[req_id=%s] [PetsHandlers] CreatePet", reqID)
 	}
 
-	var body gen.CreatePetJSONBody
-	if err := ctx.Bind(&body); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-	}
+	_ = request
 
-	return ctx.JSON(http.StatusCreated, map[string]any{"id": 123, "name": body.Name, "tag": body.Tag})
+	// Spec declares an empty 201 response in this API.
+	return gen.CreatePet201Response{}, nil
 }
 
-func (h *PetsHandlers) DeletePet(ctx echo.Context, petId int64) error {
+func (h *PetsHandlers) DeletePet(ctx context.Context, request gen.DeletePetRequestObject) (gen.DeletePetResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] DeletePet petId=%d", reqID, petId)
+		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
+		log.Printf("[req_id=%s] [PetsHandlers] DeletePet", reqID)
 	}
 
-	return ctx.NoContent(http.StatusNoContent)
+	_ = request
+
+	return gen.DeletePet204Response{}, nil
 }
 
-func (h *PetsHandlers) GetPetById(ctx echo.Context, petId int64) error {
+func (h *PetsHandlers) GetPetById(ctx context.Context, request gen.GetPetByIdRequestObject) (gen.GetPetByIdResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] GetPetById petId=%d", reqID, petId)
+		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
+		log.Printf("[req_id=%s] [PetsHandlers] GetPetById", reqID)
 	}
 
-	return ctx.JSON(http.StatusOK, map[string]any{"id": petId, "name": "Mock Pet"})
+	_ = request
+
+	return gen.GetPetById200Response{}, nil
 }

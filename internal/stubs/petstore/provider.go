@@ -2,7 +2,7 @@
 package petstore
 
 import (
-	"github.com/labstack/echo/v4"
+	"context"
 	gen "openapi-mock/internal/generated/petstore"
 )
 
@@ -11,28 +11,28 @@ type CompositeHandlers struct {
 	pets     *PetsHandlers
 }
 
-func NewCompositeHandlers(default_ *DefaultHandlers, pets *PetsHandlers) gen.ServerInterface {
+func NewCompositeHandlers(default_ *DefaultHandlers, pets *PetsHandlers) gen.StrictServerInterface {
 	return &CompositeHandlers{default_: default_, pets: pets}
 }
 
-var _ gen.ServerInterface = (*CompositeHandlers)(nil)
+var _ gen.StrictServerInterface = (*CompositeHandlers)(nil)
 
-func (c *CompositeHandlers) HealthCheck(ctx echo.Context) error {
-	return c.default_.HealthCheck(ctx)
+func (c *CompositeHandlers) HealthCheck(ctx context.Context, request gen.HealthCheckRequestObject) (gen.HealthCheckResponseObject, error) {
+	return c.default_.HealthCheck(ctx, request)
 }
 
-func (c *CompositeHandlers) ListPets(ctx echo.Context, params gen.ListPetsParams) error {
-	return c.pets.ListPets(ctx, params)
+func (c *CompositeHandlers) DeletePet(ctx context.Context, request gen.DeletePetRequestObject) (gen.DeletePetResponseObject, error) {
+	return c.pets.DeletePet(ctx, request)
 }
 
-func (c *CompositeHandlers) CreatePet(ctx echo.Context) error {
-	return c.pets.CreatePet(ctx)
+func (c *CompositeHandlers) GetPetById(ctx context.Context, request gen.GetPetByIdRequestObject) (gen.GetPetByIdResponseObject, error) {
+	return c.pets.GetPetById(ctx, request)
 }
 
-func (c *CompositeHandlers) DeletePet(ctx echo.Context, petId int64) error {
-	return c.pets.DeletePet(ctx, petId)
+func (c *CompositeHandlers) ListPets(ctx context.Context, request gen.ListPetsRequestObject) (gen.ListPetsResponseObject, error) {
+	return c.pets.ListPets(ctx, request)
 }
 
-func (c *CompositeHandlers) GetPetById(ctx echo.Context, petId int64) error {
-	return c.pets.GetPetById(ctx, petId)
+func (c *CompositeHandlers) CreatePet(ctx context.Context, request gen.CreatePetRequestObject) (gen.CreatePetResponseObject, error) {
+	return c.pets.CreatePet(ctx, request)
 }

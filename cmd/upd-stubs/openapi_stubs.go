@@ -50,11 +50,10 @@ func generateOpenAPIStubFile(outDir string, spec *openapiSpec, tag string, ops [
 	var buf bytes.Buffer
 
 	imports := map[string]string{
-		"log":                         "",
-		"net/http":                    "",
-		"openapi-mock/pkg/ctxkeys":    "",
-		spec.GenPkgPath:               "gen",
-		"github.com/labstack/echo/v4": "",
+		"context":                  "",
+		"log":                      "",
+		"openapi-mock/pkg/ctxkeys": "",
+		spec.GenPkgPath:            "gen",
 	}
 
 	fmt.Fprintf(&buf, "package %s\n\n", spec.PkgName)
@@ -97,107 +96,29 @@ func generateOpenAPIMethod(structName string, spec *openapiSpec, op opInfo) stri
 	var buf bytes.Buffer
 
 	methodName := op.OperationID
-	fallbackMethodName := ""
 	if methodName == "" {
-		fallbackMethodName = toPascalCase(op.Method + "_" + strings.ReplaceAll(op.Path, "/", "_"))
-		methodName = fallbackMethodName
+		methodName = toPascalCase(op.Method + "_" + strings.ReplaceAll(op.Path, "/", "_"))
 	}
 
-	// Get method signature from generated ServerInterface
-	sig := getOpenAPIMethodSignature(spec, op, methodName)
+	// Strict signature types
+	reqType := fmt.Sprintf("gen.%sRequestObject", methodName)
+	respType := fmt.Sprintf("gen.%sResponseObject", methodName)
 
-	fmt.Fprintf(&buf, "func (h *%s) %s(%s) %s{\n", structName, methodName, sig.Params, sig.Return)
+	fmt.Fprintf(&buf, "func (h *%s) %s(ctx context.Context, request %s) (%s, error) {\n", structName, methodName, reqType, respType)
 	fmt.Fprintf(&buf, "\tif h.EnableLogging {\n")
-	fmt.Fprintf(&buf, "\t\treqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)\n")
+	fmt.Fprintf(&buf, "\t\treqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)\n")
 	fmt.Fprintf(&buf, "\t\tlog.Printf(\"[req_id=%%s] [%s] %s\", reqID)\n", structName, methodName)
 	fmt.Fprintf(&buf, "\t}\n\n")
 
-	// Generate response based on operation
-	buf.WriteString(generateOpenAPIMethodBody(spec, op))
+	// Avoid unused warning for request in basic stubs
+	fmt.Fprintf(&buf, "\t_ = request\n\n")
 
-	fmt.Fprintf(&buf, "}")
+	buf.WriteString(generateOpenAPIMethodBody(spec, op, methodName))
+	fmt.Fprintf(&buf, "}\n")
 	return buf.String()
 }
 
-type methodSignature struct {
-	Params  string
-	Return  string
-	ArgList string
-}
-
-func getOpenAPIMethodSignature(spec *openapiSpec, op opInfo, methodName string) methodSignature {
-	var params []string
-	var argNames []string
-
-	params = append(params, "ctx echo.Context")
-	argNames = append(argNames, "ctx")
-
-	// Add path parameters
-	for _, param := range op.Operation.Parameters {
-		if param.Value == nil {
-			continue
-		}
-		if param.Value.In == "path" {
-			paramName := param.Value.Name
-			paramType := schemaToGoType(param.Value.Schema)
-			params = append(params, fmt.Sprintf("%s %s", paramName, paramType))
-			argNames = append(argNames, paramName)
-		}
-	}
-
-	// Add query params struct if exists.
-	// oapi-codegen uses <OperationID>Params when OperationID is set; otherwise it doesn't generate a params struct.
-	if op.OperationID != "" && hasQueryParams(op.Operation) {
-		params = append(params, fmt.Sprintf("params gen.%sParams", op.OperationID))
-		argNames = append(argNames, "params")
-	}
-
-	return methodSignature{
-		Params:  strings.Join(params, ", "),
-		Return:  "error ",
-		ArgList: strings.Join(argNames, ", "),
-	}
-}
-
-func hasQueryParams(op *openapi3.Operation) bool {
-	for _, param := range op.Parameters {
-		if param.Value != nil && param.Value.In == "query" {
-			return true
-		}
-	}
-	return false
-}
-
-func schemaToGoType(schemaRef *openapi3.SchemaRef) string {
-	if schemaRef == nil || schemaRef.Value == nil {
-		return "interface{}"
-	}
-	schema := schemaRef.Value
-
-	switch schema.Type.Slice()[0] {
-	case "integer":
-		if schema.Format == "int64" {
-			return "int64"
-		}
-		return "int"
-	case "number":
-		if schema.Format == "float" {
-			return "float32"
-		}
-		return "float64"
-	case "boolean":
-		return "bool"
-	case "string":
-		return "string"
-	case "array":
-		elemType := schemaToGoType(schema.Items)
-		return "[]" + elemType
-	default:
-		return "interface{}"
-	}
-}
-
-func generateOpenAPIMethodBody(spec *openapiSpec, op opInfo) string {
+func generateOpenAPIMethodBody(spec *openapiSpec, op opInfo, methodName string) string {
 	var buf bytes.Buffer
 
 	// Find first successful response
@@ -212,26 +133,38 @@ func generateOpenAPIMethodBody(spec *openapiSpec, op opInfo) string {
 	}
 
 	if successCode == "" || successResp == nil {
-		buf.WriteString("\treturn ctx.NoContent(http.StatusOK)\n")
+		// No declared success response: return empty 200
+		buf.WriteString(fmt.Sprintf("\treturn gen.%s200Response{}, nil\n", methodName))
 		return buf.String()
 	}
 
-	switch successCode {
-	case "204":
-		buf.WriteString("\treturn ctx.NoContent(http.StatusNoContent)\n")
-	case "201":
-		body := responseBodyExpr(spec, successResp)
-		buf.WriteString(fmt.Sprintf("\treturn ctx.JSON(http.StatusCreated, %s)\n", body))
+	// Decide whether this is a JSON response type (oapi-codegen generates both
+	// <Op><Code>JSONResponse and <Op><Code>Response depending on the spec).
+	jsonBody := responseHasJSONBody(successResp)
+	bodyExpr := responseBodyExpr(spec, successResp)
+
+	switch {
+	case jsonBody:
+		// JSON response wrappers
+		buf.WriteString(fmt.Sprintf("\treturn gen.%s%sJSONResponse(%s), nil\n", methodName, successCode, bodyExpr))
 	default:
-		body := responseBodyExpr(spec, successResp)
-		buf.WriteString(fmt.Sprintf("\treturn ctx.JSON(http.StatusOK, %s)\n", body))
+		// Empty/non-JSON response wrappers
+		buf.WriteString(fmt.Sprintf("\treturn gen.%s%sResponse{}, nil\n", methodName, successCode))
 	}
 
 	return buf.String()
 }
 
+func responseHasJSONBody(resp *openapi3.Response) bool {
+	if resp == nil || resp.Content == nil {
+		return false
+	}
+	jsonContent := resp.Content.Get("application/json")
+	return jsonContent != nil && jsonContent.Schema != nil
+}
+
 func responseBodyExpr(spec *openapiSpec, resp *openapi3.Response) string {
-	if resp.Content == nil {
+	if resp == nil || resp.Content == nil {
 		return "map[string]string{\"status\": \"ok\"}"
 	}
 
@@ -241,27 +174,32 @@ func responseBodyExpr(spec *openapiSpec, resp *openapi3.Response) string {
 	}
 
 	schema := jsonContent.Schema
-	if schema.Ref != "" {
-		schemaName := filepath.Base(schema.Ref)
-		return fmt.Sprintf("gen.%s{}", schemaName)
-	}
-
 	if schema.Value == nil {
+		// If it's a $ref, oapi-codegen will have the model in types.gen.go, but schema.Value
+		// can still be nil depending on how kin-openapi provides it; keep it safe.
 		return "map[string]string{\"status\": \"ok\"}"
 	}
 
-	switch schema.Value.Type.Slice()[0] {
-	case "array":
-		if schema.Value.Items != nil && schema.Value.Items.Ref != "" {
-			itemName := filepath.Base(schema.Value.Items.Ref)
-			return fmt.Sprintf("[]gen.%s{}", itemName)
+	// For strict-server JSON responses, the response wrapper type expects the *exact*
+	// element type generated in server.gen.go. For many specs, list responses are
+	// generated as anonymous structs, so we simply return an empty literal of the
+	// wrapper type, which is always assignable.
+	//
+	// This keeps stubs compiling even when schemas are inline/anonymous.
+	if schema.Ref == "" {
+		switch schema.Value.Type.Slice()[0] {
+		case "array", "object":
+			return fmt.Sprintf("%s{}", "")
 		}
-		return "[]interface{}{}"
-	case "object":
-		return "map[string]interface{}{}"
-	default:
-		return "map[string]string{\"status\": \"ok\"}"
 	}
+
+	// If the schema is a $ref to a named model, try to instantiate it.
+	if schema.Ref != "" {
+		modelName := filepath.Base(schema.Ref)
+		return fmt.Sprintf("gen.%s{}", modelName)
+	}
+
+	return "map[string]string{\"status\": \"ok\"}"
 }
 
 func updateOpenAPIStubFile(path string, spec *openapiSpec, tag string, ops []opInfo) error {
