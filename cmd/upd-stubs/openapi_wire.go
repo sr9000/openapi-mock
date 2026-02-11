@@ -25,8 +25,9 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 
 	fmt.Fprintf(&buf, "import (\n")
 	fmt.Fprintf(&buf, "\t\"net/http\"\n\n")
-	fmt.Fprintf(&buf, "\t\"github.com/go-chi/chi/v5\"\n")
-	fmt.Fprintf(&buf, "\t\"github.com/google/wire\"\n\n")
+	fmt.Fprintf(&buf, "\t\"github.com/google/wire\"\n")
+	fmt.Fprintf(&buf, "\t\"github.com/labstack/echo/v4\"\n")
+	fmt.Fprintf(&buf, "\tmw \"github.com/labstack/echo/v4/middleware\"\n\n")
 
 	// Import all stubs and generated packages
 	type specImport struct {
@@ -65,7 +66,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 
 	// Generate HTTPApp struct
 	fmt.Fprintf(&buf, "type HTTPApp struct {\n")
-	fmt.Fprintf(&buf, "\tRouter *chi.Mux\n")
+	fmt.Fprintf(&buf, "\tEcho *echo.Echo\n")
 	for _, imp := range imports {
 		// Find the spec
 		var spec *openapiSpec
@@ -103,23 +104,25 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		fmt.Fprintf(&buf, "}\n\n")
 	}
 
-	// Generate router provider
-	fmt.Fprintf(&buf, "func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, ")
+	// Generate Echo engine provider
+	fmt.Fprintf(&buf, "func provideHTTPEcho(middlewares []func(http.Handler) http.Handler, ")
 	var routerParams []string
 	for i, imp := range imports {
 		spec := specs[i]
 		routerParams = append(routerParams, fmt.Sprintf("%s %s.ServerInterface", spec.PkgName+"Handler", imp.GenAlias))
 	}
-	fmt.Fprintf(&buf, "%s) *chi.Mux {\n", strings.Join(routerParams, ", "))
-	fmt.Fprintf(&buf, "\tr := chi.NewRouter()\n")
-	fmt.Fprintf(&buf, "\tfor _, mw := range middlewares {\n")
-	fmt.Fprintf(&buf, "\t\tr.Use(mw)\n")
+	fmt.Fprintf(&buf, "%s) *echo.Echo {\n", strings.Join(routerParams, ", "))
+	fmt.Fprintf(&buf, "\te := echo.New()\n")
+	fmt.Fprintf(&buf, "\tfor _, mwHTTP := range middlewares {\n")
+	fmt.Fprintf(&buf, "\t\te.Use(echo.WrapMiddleware(mwHTTP))\n")
 	fmt.Fprintf(&buf, "\t}\n")
+	fmt.Fprintf(&buf, "\te.HideBanner = true\n")
+	fmt.Fprintf(&buf, "\te.Use(mw.Recover())\n")
 	for i, imp := range imports {
 		spec := specs[i]
-		fmt.Fprintf(&buf, "\t%s.HandlerFromMux(%s, r)\n", imp.GenAlias, spec.PkgName+"Handler")
+		fmt.Fprintf(&buf, "\t%s.RegisterHandlers(e, %s)\n", imp.GenAlias, spec.PkgName+"Handler")
 	}
-	fmt.Fprintf(&buf, "\treturn r\n")
+	fmt.Fprintf(&buf, "\treturn e\n")
 	fmt.Fprintf(&buf, "}\n\n")
 
 	// Generate ProviderSet
@@ -143,7 +146,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		}
 		fmt.Fprintf(&buf, "\tprovide%sHandlers,\n", toPascalCase(spec.PkgName))
 	}
-	fmt.Fprintf(&buf, "\tprovideHTTPRouter,\n")
+	fmt.Fprintf(&buf, "\tprovideHTTPEcho,\n")
 	fmt.Fprintf(&buf, "\twire.Struct(new(HTTPApp), \"*\"),\n")
 	fmt.Fprintf(&buf, ")\n\n")
 

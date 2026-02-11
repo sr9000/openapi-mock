@@ -7,10 +7,11 @@
 package app
 
 import (
-	"github.com/go-chi/chi/v5"
 	"github.com/google/wire"
+	echo2 "github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"net/http"
-	echo2 "openapi-mock/internal/generated/echo"
+	echo3 "openapi-mock/internal/generated/echo"
 	petstore2 "openapi-mock/internal/generated/petstore"
 	"openapi-mock/internal/stubs/echo"
 	"openapi-mock/internal/stubs/petstore"
@@ -25,9 +26,9 @@ func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, enableLogg
 	defaultHandlers := petstore.NewDefaultHandlers(enableLogging)
 	petsHandlers := petstore.NewPetsHandlers(enableLogging)
 	petstoreServerInterface := providePetstoreHandlers(defaultHandlers, petsHandlers)
-	mux := provideHTTPRouter(middlewares, serverInterface, petstoreServerInterface)
+	echoEcho := provideHTTPEcho(middlewares, serverInterface, petstoreServerInterface)
 	httpApp := &HTTPApp{
-		Router:          mux,
+		Echo:            echoEcho,
 		EchoEcho:        echoHandlers,
 		EchoStatus:      statusHandlers,
 		PetstoreDefault: defaultHandlers,
@@ -39,31 +40,33 @@ func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, enableLogg
 // openapi_wire.go:
 
 type HTTPApp struct {
-	Router          *chi.Mux
+	Echo            *echo2.Echo
 	EchoEcho        *echo.EchoHandlers
 	EchoStatus      *echo.StatusHandlers
 	PetstoreDefault *petstore.DefaultHandlers
 	PetstorePets    *petstore.PetsHandlers
 }
 
-func provideEchoHandlers(echo3 *echo.EchoHandlers, status *echo.StatusHandlers) echo2.ServerInterface {
-	return echo.NewCompositeHandlers(echo3, status)
+func provideEchoHandlers(echo4 *echo.EchoHandlers, status *echo.StatusHandlers) echo3.ServerInterface {
+	return echo.NewCompositeHandlers(echo4, status)
 }
 
 func providePetstoreHandlers(default_ *petstore.DefaultHandlers, pets *petstore.PetsHandlers) petstore2.ServerInterface {
 	return petstore.NewCompositeHandlers(default_, pets)
 }
 
-func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, echoHandler echo2.ServerInterface, petstoreHandler petstore2.ServerInterface) *chi.Mux {
-	r := chi.NewRouter()
-	for _, mw := range middlewares {
-		r.Use(mw)
+func provideHTTPEcho(middlewares []func(http.Handler) http.Handler, echoHandler echo3.ServerInterface, petstoreHandler petstore2.ServerInterface) *echo2.Echo {
+	e := echo2.New()
+	for _, mwHTTP := range middlewares {
+		e.Use(echo2.WrapMiddleware(mwHTTP))
 	}
-	echo2.HandlerFromMux(echoHandler, r)
-	petstore2.HandlerFromMux(petstoreHandler, r)
-	return r
+	e.HideBanner = true
+	e.Use(middleware.Recover())
+	echo3.RegisterHandlers(e, echoHandler)
+	petstore2.RegisterHandlers(e, petstoreHandler)
+	return e
 }
 
 var HTTPProviderSet = wire.NewSet(echo.NewEchoHandlers, echo.NewStatusHandlers, provideEchoHandlers, petstore.NewDefaultHandlers, petstore.NewPetsHandlers, providePetstoreHandlers,
-	provideHTTPRouter, wire.Struct(new(HTTPApp), "*"),
+	provideHTTPEcho, wire.Struct(new(HTTPApp), "*"),
 )

@@ -2,9 +2,8 @@
 package echo
 
 import (
-	gen "openapi-mock/internal/generated/echo"
-
 	"github.com/labstack/echo/v4"
+	gen "openapi-mock/internal/generated/echo"
 )
 
 type CompositeHandlers struct {

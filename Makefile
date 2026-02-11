@@ -12,11 +12,8 @@ stub:
 	@echo
 	@echo "===================="
 	@echo "Updating stubs..."
-	@if command -v upd-stubs >/dev/null 2>&1; then \
-		upd-stubs; \
-	else \
-		go build -o bin/upd-stubs ./cmd/upd-stubs && ./bin/upd-stubs; \
-	fi
+	@# Always use the in-repo generator to avoid picking up an outdated `upd-stubs` from PATH.
+	go run ./cmd/upd-stubs
 # Generate wire dependency injection
 wire:
 	@echo

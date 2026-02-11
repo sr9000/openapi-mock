@@ -2,9 +2,8 @@
 package petstore
 
 import (
-	gen "openapi-mock/internal/generated/petstore"
-
 	"github.com/labstack/echo/v4"
+	gen "openapi-mock/internal/generated/petstore"
 )
 
 type CompositeHandlers struct {

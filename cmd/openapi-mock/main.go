@@ -94,7 +94,7 @@ func runServer(cfg Config) error {
 		return fmt.Errorf("failed to initialize app: %w", err)
 	}
 
-	server := &http.Server{Addr: addr, Handler: httpApp.Router}
+	server := &http.Server{Addr: addr, Handler: httpApp.Echo}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
