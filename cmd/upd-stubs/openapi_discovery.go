@@ -72,6 +72,7 @@ func discoverOpenAPISpecs() ([]*openapiSpec, error) {
 
 func loadOpenAPISpec(path string) (*openapiSpec, error) {
 	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
 	doc, err := loader.LoadFromFile(path)
 	if err != nil {
 		return nil, err

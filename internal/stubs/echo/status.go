@@ -1,11 +1,12 @@
 package echo
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	gen "openapi-mock/internal/generated/echo"
 	"openapi-mock/pkg/ctxkeys"
+
+	"github.com/labstack/echo/v4"
 )
 
 type StatusHandlers struct {
@@ -16,12 +17,11 @@ func NewStatusHandlers(enableLogging bool) *StatusHandlers {
 	return &StatusHandlers{EnableLogging: enableLogging}
 }
 
-func (h *StatusHandlers) GetStatus(w http.ResponseWriter, r *http.Request) {
+func (h *StatusHandlers) GetStatus(ctx echo.Context) error {
 	if h.EnableLogging {
-		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
+		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
 		log.Printf("[req_id=%s] [StatusHandlers] GetStatus", reqID)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(gen.StatusResponse{})
+	return ctx.JSON(http.StatusOK, gen.StatusResponse{})
 }

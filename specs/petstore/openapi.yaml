@@ -4,72 +4,14 @@ info:
   version: "1.0.0"
 paths:
   /pets:
-    get:
-      tags: [pets]
-      operationId: ListPets
-      parameters:
-        - name: limit
-          in: query
-          schema: { type: integer }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/Pet' }
-    post:
-      tags: [pets]
-      operationId: CreatePet
-      requestBody:
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/NewPet' }
-      responses:
-        '201':
-          description: Created
+    $ref: './paths/pets.yaml#/pets'
   /pets/{petId}:
-    get:
-      tags: [pets]
-      operationId: GetPetById
-      parameters:
-        - name: petId
-          in: path
-          required: true
-          schema: { type: integer, format: int64 }
-      responses:
-        '200':
-          description: OK
-    delete:
-      tags: [pets]
-      operationId: DeletePet
-      parameters:
-        - name: petId
-          in: path
-          required: true
-          schema: { type: integer, format: int64 }
-      responses:
-        '204':
-          description: Deleted
+    $ref: './paths/pets.yaml#/pet_details'
   /health:
-    get:
-      operationId: HealthCheck
-      responses:
-        '200':
-          description: OK
+    $ref: './paths/system.yaml#/health'
 components:
   schemas:
     Pet:
-      type: object
-      required: [id, name]
-      properties:
-        id: { type: integer, format: int64 }
-        name: { type: string }
-        tag: { type: string }
+      $ref: './schemas/Pet.yaml'
     NewPet:
-      type: object
-      required: [name]
-      properties:
-        name: { type: string }
-        tag: { type: string }
+      $ref: './schemas/NewPet.yaml'

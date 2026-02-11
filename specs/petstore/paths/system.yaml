@@ -1,0 +1,6 @@
+health:
+  get:
+    operationId: HealthCheck
+    responses:
+      '200':
+        description: OK

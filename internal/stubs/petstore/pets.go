@@ -1,11 +1,12 @@
 package petstore
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	gen "openapi-mock/internal/generated/petstore"
 	"openapi-mock/pkg/ctxkeys"
+
+	"github.com/labstack/echo/v4"
 )
 
 type PetsHandlers struct {
@@ -16,51 +17,49 @@ func NewPetsHandlers(enableLogging bool) *PetsHandlers {
 	return &PetsHandlers{EnableLogging: enableLogging}
 }
 
-func (h *PetsHandlers) ListPets(w http.ResponseWriter, r *http.Request, params gen.ListPetsParams) {
+func (h *PetsHandlers) ListPets(ctx echo.Context, params gen.ListPetsParams) error {
 	if h.EnableLogging {
-		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
+		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
 		log.Printf("[req_id=%s] [PetsHandlers] ListPets", reqID)
 	}
 
-	// CUSTOM: Return realistic mock pets
-	pets := []gen.Pet{
-		{Id: 1, Name: "Fluffy"},
-		{Id: 2, Name: "Buddy"},
-		{Id: 3, Name: "Max"},
+	// Return a basic mock payload (spec doesn't currently generate Pet schema types)
+	pets := []map[string]any{
+		{"id": 1, "name": "Fluffy"},
+		{"id": 2, "name": "Buddy"},
+		{"id": 3, "name": "Max"},
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(pets)
+	return ctx.JSON(http.StatusOK, pets)
 }
 
-func (h *PetsHandlers) CreatePet(w http.ResponseWriter, r *http.Request) {
+func (h *PetsHandlers) CreatePet(ctx echo.Context) error {
 	if h.EnableLogging {
-		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
+		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
 		log.Printf("[req_id=%s] [PetsHandlers] CreatePet", reqID)
 	}
 
-	var pet gen.NewPet
-	json.NewDecoder(r.Body).Decode(&pet)
+	var body gen.CreatePetJSONBody
+	if err := ctx.Bind(&body); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(gen.Pet{Id: 123, Name: pet.Name, Tag: pet.Tag})
+	return ctx.JSON(http.StatusCreated, map[string]any{"id": 123, "name": body.Name, "tag": body.Tag})
 }
 
-func (h *PetsHandlers) DeletePet(w http.ResponseWriter, r *http.Request, petId int64) {
+func (h *PetsHandlers) DeletePet(ctx echo.Context, petId int64) error {
 	if h.EnableLogging {
-		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
+		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
 		log.Printf("[req_id=%s] [PetsHandlers] DeletePet petId=%d", reqID, petId)
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	return ctx.NoContent(http.StatusNoContent)
 }
 
-func (h *PetsHandlers) GetPetById(w http.ResponseWriter, r *http.Request, petId int64) {
+func (h *PetsHandlers) GetPetById(ctx echo.Context, petId int64) error {
 	if h.EnableLogging {
-		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
+		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
 		log.Printf("[req_id=%s] [PetsHandlers] GetPetById petId=%d", reqID, petId)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(gen.Pet{Id: petId, Name: "Mock Pet"})
+	return ctx.JSON(http.StatusOK, map[string]any{"id": petId, "name": "Mock Pet"})
 }

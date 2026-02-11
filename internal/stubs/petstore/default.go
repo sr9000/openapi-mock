@@ -1,10 +1,11 @@
 package petstore
 
 import (
-	"encoding/json"
 	"log"
 	"net/http"
 	"openapi-mock/pkg/ctxkeys"
+
+	"github.com/labstack/echo/v4"
 )
 
 type DefaultHandlers struct {
@@ -15,12 +16,11 @@ func NewDefaultHandlers(enableLogging bool) *DefaultHandlers {
 	return &DefaultHandlers{EnableLogging: enableLogging}
 }
 
-func (h *DefaultHandlers) HealthCheck(w http.ResponseWriter, r *http.Request) {
+func (h *DefaultHandlers) HealthCheck(ctx echo.Context) error {
 	if h.EnableLogging {
-		reqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)
+		reqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)
 		log.Printf("[req_id=%s] [DefaultHandlers] HealthCheck", reqID)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	return ctx.JSON(http.StatusOK, map[string]string{"status": "ok"})
 }

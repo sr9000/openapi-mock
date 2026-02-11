@@ -2,8 +2,9 @@
 package petstore
 
 import (
-	"net/http"
 	gen "openapi-mock/internal/generated/petstore"
+
+	"github.com/labstack/echo/v4"
 )
 
 type CompositeHandlers struct {
@@ -17,22 +18,22 @@ func NewCompositeHandlers(default_ *DefaultHandlers, pets *PetsHandlers) gen.Ser
 
 var _ gen.ServerInterface = (*CompositeHandlers)(nil)
 
-func (c *CompositeHandlers) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	c.default_.HealthCheck(w, r)
+func (c *CompositeHandlers) HealthCheck(ctx echo.Context) error {
+	return c.default_.HealthCheck(ctx)
 }
 
-func (c *CompositeHandlers) ListPets(w http.ResponseWriter, r *http.Request, params gen.ListPetsParams) {
-	c.pets.ListPets(w, r, params)
+func (c *CompositeHandlers) ListPets(ctx echo.Context, params gen.ListPetsParams) error {
+	return c.pets.ListPets(ctx, params)
 }
 
-func (c *CompositeHandlers) CreatePet(w http.ResponseWriter, r *http.Request) {
-	c.pets.CreatePet(w, r)
+func (c *CompositeHandlers) CreatePet(ctx echo.Context) error {
+	return c.pets.CreatePet(ctx)
 }
 
-func (c *CompositeHandlers) DeletePet(w http.ResponseWriter, r *http.Request, petId int64) {
-	c.pets.DeletePet(w, r, petId)
+func (c *CompositeHandlers) DeletePet(ctx echo.Context, petId int64) error {
+	return c.pets.DeletePet(ctx, petId)
 }
 
-func (c *CompositeHandlers) GetPetById(w http.ResponseWriter, r *http.Request, petId int64) {
-	c.pets.GetPetById(w, r, petId)
+func (c *CompositeHandlers) GetPetById(ctx echo.Context, petId int64) error {
+	return c.pets.GetPetById(ctx, petId)
 }

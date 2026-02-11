@@ -1,0 +1,50 @@
+pets:
+  get:
+    tags: [pets]
+    operationId: ListPets
+    parameters:
+      - name: limit
+        in: query
+        schema: { type: integer }
+    responses:
+      '200':
+        description: OK
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '../schemas/Pet.yaml' }
+  post:
+    tags: [pets]
+    operationId: CreatePet
+    requestBody:
+      content:
+        application/json:
+          schema: { $ref: '../schemas/NewPet.yaml' }
+    responses:
+      '201':
+        description: Created
+
+pet_details:
+  get:
+    tags: [pets]
+    operationId: GetPetById
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    responses:
+      '200':
+        description: OK
+  delete:
+    tags: [pets]
+    operationId: DeletePet
+    parameters:
+      - name: petId
+        in: path
+        required: true
+        schema: { type: integer, format: int64 }
+    responses:
+      '204':
+        description: Deleted

@@ -6,8 +6,8 @@ package app
 import (
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/google/wire"
+	"github.com/labstack/echo/v4"
 
 	echogen "openapi-mock/internal/generated/echo"
 	petstoregen "openapi-mock/internal/generated/petstore"
@@ -17,29 +17,44 @@ import (
 )
 
 type HTTPApp struct {
-	Router          *chi.Mux
+	Router          *echo.Echo
 	EchoEcho        *echostub.EchoHandlers
 	EchoStatus      *echostub.StatusHandlers
 	PetstoreDefault *petstorestub.DefaultHandlers
 	PetstorePets    *petstorestub.PetsHandlers
 }
 
-func provideEchoHandlers(echo *echostub.EchoHandlers, status *echostub.StatusHandlers) echogen.ServerInterface {
-	return echostub.NewCompositeHandlers(echo, status)
+func provideEchoHandlers(echoH *echostub.EchoHandlers, status *echostub.StatusHandlers) echogen.ServerInterface {
+	return echostub.NewCompositeHandlers(echoH, status)
 }
 
 func providePetstoreHandlers(default_ *petstorestub.DefaultHandlers, pets *petstorestub.PetsHandlers) petstoregen.ServerInterface {
 	return petstorestub.NewCompositeHandlers(default_, pets)
 }
 
-func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, echoHandler echogen.ServerInterface, petstoreHandler petstoregen.ServerInterface) *chi.Mux {
-	r := chi.NewRouter()
+func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, echoHandler echogen.ServerInterface, petstoreHandler petstoregen.ServerInterface) *echo.Echo {
+	e := echo.New()
+
+	// Adapt net/http middleware to Echo
 	for _, mw := range middlewares {
-		r.Use(mw)
+		e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				h := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					c.SetRequest(r)
+					err := next(c)
+					if err != nil {
+						_ = c.Error(err)
+					}
+				}))
+				h.ServeHTTP(c.Response(), c.Request())
+				return nil
+			}
+		})
 	}
-	echogen.HandlerFromMux(echoHandler, r)
-	petstoregen.HandlerFromMux(petstoreHandler, r)
-	return r
+
+	echogen.RegisterHandlers(e, echoHandler)
+	petstoregen.RegisterHandlers(e, petstoreHandler)
+	return e
 }
 
 var HTTPProviderSet = wire.NewSet(

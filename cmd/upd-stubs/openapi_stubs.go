@@ -50,11 +50,11 @@ func generateOpenAPIStubFile(outDir string, spec *openapiSpec, tag string, ops [
 	var buf bytes.Buffer
 
 	imports := map[string]string{
-		"encoding/json":            "",
-		"log":                      "",
-		"net/http":                 "",
-		"openapi-mock/pkg/ctxkeys": "",
-		spec.GenPkgPath:            "gen",
+		"log":                         "",
+		"net/http":                    "",
+		"openapi-mock/pkg/ctxkeys":    "",
+		spec.GenPkgPath:               "gen",
+		"github.com/labstack/echo/v4": "",
 	}
 
 	fmt.Fprintf(&buf, "package %s\n\n", spec.PkgName)
@@ -97,16 +97,18 @@ func generateOpenAPIMethod(structName string, spec *openapiSpec, op opInfo) stri
 	var buf bytes.Buffer
 
 	methodName := op.OperationID
+	fallbackMethodName := ""
 	if methodName == "" {
-		methodName = toPascalCase(op.Method + "_" + strings.ReplaceAll(op.Path, "/", "_"))
+		fallbackMethodName = toPascalCase(op.Method + "_" + strings.ReplaceAll(op.Path, "/", "_"))
+		methodName = fallbackMethodName
 	}
 
 	// Get method signature from generated ServerInterface
-	sig := getOpenAPIMethodSignature(spec, op)
+	sig := getOpenAPIMethodSignature(spec, op, methodName)
 
-	fmt.Fprintf(&buf, "func (h *%s) %s(%s) {\n", structName, methodName, sig.Params)
+	fmt.Fprintf(&buf, "func (h *%s) %s(%s) %s{\n", structName, methodName, sig.Params, sig.Return)
 	fmt.Fprintf(&buf, "\tif h.EnableLogging {\n")
-	fmt.Fprintf(&buf, "\t\treqID, _ := r.Context().Value(ctxkeys.RequestID{}).(string)\n")
+	fmt.Fprintf(&buf, "\t\treqID, _ := ctx.Request().Context().Value(ctxkeys.RequestID{}).(string)\n")
 	fmt.Fprintf(&buf, "\t\tlog.Printf(\"[req_id=%%s] [%s] %s\", reqID)\n", structName, methodName)
 	fmt.Fprintf(&buf, "\t}\n\n")
 
@@ -118,13 +120,17 @@ func generateOpenAPIMethod(structName string, spec *openapiSpec, op opInfo) stri
 }
 
 type methodSignature struct {
-	Params string
-	Return string
+	Params  string
+	Return  string
+	ArgList string
 }
 
-func getOpenAPIMethodSignature(spec *openapiSpec, op opInfo) methodSignature {
+func getOpenAPIMethodSignature(spec *openapiSpec, op opInfo, methodName string) methodSignature {
 	var params []string
-	params = append(params, "w http.ResponseWriter", "r *http.Request")
+	var argNames []string
+
+	params = append(params, "ctx echo.Context")
+	argNames = append(argNames, "ctx")
 
 	// Add path parameters
 	for _, param := range op.Operation.Parameters {
@@ -135,17 +141,21 @@ func getOpenAPIMethodSignature(spec *openapiSpec, op opInfo) methodSignature {
 			paramName := param.Value.Name
 			paramType := schemaToGoType(param.Value.Schema)
 			params = append(params, fmt.Sprintf("%s %s", paramName, paramType))
+			argNames = append(argNames, paramName)
 		}
 	}
 
-	// Add query params struct if exists
-	if hasQueryParams(op.Operation) {
+	// Add query params struct if exists.
+	// oapi-codegen uses <OperationID>Params when OperationID is set; otherwise it doesn't generate a params struct.
+	if op.OperationID != "" && hasQueryParams(op.Operation) {
 		params = append(params, fmt.Sprintf("params gen.%sParams", op.OperationID))
+		argNames = append(argNames, "params")
 	}
 
 	return methodSignature{
-		Params: strings.Join(params, ", "),
-		Return: "",
+		Params:  strings.Join(params, ", "),
+		Return:  "error ",
+		ArgList: strings.Join(argNames, ", "),
 	}
 }
 
@@ -190,7 +200,7 @@ func schemaToGoType(schemaRef *openapi3.SchemaRef) string {
 func generateOpenAPIMethodBody(spec *openapiSpec, op opInfo) string {
 	var buf bytes.Buffer
 
-	// Find successful response
+	// Find first successful response
 	var successCode string
 	var successResp *openapi3.Response
 	for code, resp := range op.Operation.Responses.Map() {
@@ -202,63 +212,55 @@ func generateOpenAPIMethodBody(spec *openapiSpec, op opInfo) string {
 	}
 
 	if successCode == "" || successResp == nil {
-		buf.WriteString("\tw.WriteHeader(http.StatusOK)\n")
+		buf.WriteString("\treturn ctx.NoContent(http.StatusOK)\n")
 		return buf.String()
 	}
 
-	// Handle different response codes
 	switch successCode {
 	case "204":
-		buf.WriteString("\tw.WriteHeader(http.StatusNoContent)\n")
+		buf.WriteString("\treturn ctx.NoContent(http.StatusNoContent)\n")
 	case "201":
-		buf.WriteString("\tw.Header().Set(\"Content-Type\", \"application/json\")\n")
-		buf.WriteString("\tw.WriteHeader(http.StatusCreated)\n")
-		writeResponseBody(&buf, spec, successResp)
+		body := responseBodyExpr(spec, successResp)
+		buf.WriteString(fmt.Sprintf("\treturn ctx.JSON(http.StatusCreated, %s)\n", body))
 	default:
-		buf.WriteString("\tw.Header().Set(\"Content-Type\", \"application/json\")\n")
-		writeResponseBody(&buf, spec, successResp)
+		body := responseBodyExpr(spec, successResp)
+		buf.WriteString(fmt.Sprintf("\treturn ctx.JSON(http.StatusOK, %s)\n", body))
 	}
 
 	return buf.String()
 }
 
-func writeResponseBody(buf *bytes.Buffer, spec *openapiSpec, resp *openapi3.Response) {
+func responseBodyExpr(spec *openapiSpec, resp *openapi3.Response) string {
 	if resp.Content == nil {
-		buf.WriteString("\tjson.NewEncoder(w).Encode(map[string]string{\"status\": \"ok\"})\n")
-		return
+		return "map[string]string{\"status\": \"ok\"}"
 	}
 
 	jsonContent := resp.Content.Get("application/json")
 	if jsonContent == nil || jsonContent.Schema == nil {
-		buf.WriteString("\tjson.NewEncoder(w).Encode(map[string]string{\"status\": \"ok\"})\n")
-		return
+		return "map[string]string{\"status\": \"ok\"}"
 	}
 
 	schema := jsonContent.Schema
 	if schema.Ref != "" {
-		// Reference to a schema - generate mock based on schema name
 		schemaName := filepath.Base(schema.Ref)
-		buf.WriteString(fmt.Sprintf("\tjson.NewEncoder(w).Encode(gen.%s{})\n", schemaName))
-		return
+		return fmt.Sprintf("gen.%s{}", schemaName)
 	}
 
 	if schema.Value == nil {
-		buf.WriteString("\tjson.NewEncoder(w).Encode(map[string]string{\"status\": \"ok\"})\n")
-		return
+		return "map[string]string{\"status\": \"ok\"}"
 	}
 
 	switch schema.Value.Type.Slice()[0] {
 	case "array":
 		if schema.Value.Items != nil && schema.Value.Items.Ref != "" {
 			itemName := filepath.Base(schema.Value.Items.Ref)
-			buf.WriteString(fmt.Sprintf("\tjson.NewEncoder(w).Encode([]gen.%s{})\n", itemName))
-		} else {
-			buf.WriteString("\tjson.NewEncoder(w).Encode([]interface{}{})\n")
+			return fmt.Sprintf("[]gen.%s{}", itemName)
 		}
+		return "[]interface{}{}"
 	case "object":
-		buf.WriteString("\tjson.NewEncoder(w).Encode(map[string]interface{}{})\n")
+		return "map[string]interface{}{}"
 	default:
-		buf.WriteString("\tjson.NewEncoder(w).Encode(map[string]string{\"status\": \"ok\"})\n")
+		return "map[string]string{\"status\": \"ok\"}"
 	}
 }
 

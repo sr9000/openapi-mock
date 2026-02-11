@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
+	"github.com/labstack/echo/v4"
 	"github.com/oapi-codegen/runtime"
 )
 
@@ -15,292 +15,126 @@ import (
 type ServerInterface interface {
 
 	// (GET /health)
-	HealthCheck(w http.ResponseWriter, r *http.Request)
+	HealthCheck(ctx echo.Context) error
 
 	// (GET /pets)
-	ListPets(w http.ResponseWriter, r *http.Request, params ListPetsParams)
+	ListPets(ctx echo.Context, params ListPetsParams) error
 
 	// (POST /pets)
-	CreatePet(w http.ResponseWriter, r *http.Request)
+	CreatePet(ctx echo.Context) error
 
 	// (DELETE /pets/{petId})
-	DeletePet(w http.ResponseWriter, r *http.Request, petId int64)
+	DeletePet(ctx echo.Context, petId int64) error
 
 	// (GET /pets/{petId})
-	GetPetById(w http.ResponseWriter, r *http.Request, petId int64)
+	GetPetById(ctx echo.Context, petId int64) error
 }
 
-// Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
-
-type Unimplemented struct{}
-
-// (GET /health)
-func (_ Unimplemented) HealthCheck(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// (GET /pets)
-func (_ Unimplemented) ListPets(w http.ResponseWriter, r *http.Request, params ListPetsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// (POST /pets)
-func (_ Unimplemented) CreatePet(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// (DELETE /pets/{petId})
-func (_ Unimplemented) DeletePet(w http.ResponseWriter, r *http.Request, petId int64) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// (GET /pets/{petId})
-func (_ Unimplemented) GetPetById(w http.ResponseWriter, r *http.Request, petId int64) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
-// ServerInterfaceWrapper converts contexts to parameters.
+// ServerInterfaceWrapper converts echo contexts to parameters.
 type ServerInterfaceWrapper struct {
-	Handler            ServerInterface
-	HandlerMiddlewares []MiddlewareFunc
-	ErrorHandlerFunc   func(w http.ResponseWriter, r *http.Request, err error)
+	Handler ServerInterface
 }
 
-type MiddlewareFunc func(http.Handler) http.Handler
+// HealthCheck converts echo context to params.
+func (w *ServerInterfaceWrapper) HealthCheck(ctx echo.Context) error {
+	var err error
 
-// HealthCheck operation middleware
-func (siw *ServerInterfaceWrapper) HealthCheck(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.HealthCheck(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.HealthCheck(ctx)
+	return err
 }
 
-// ListPets operation middleware
-func (siw *ServerInterfaceWrapper) ListPets(w http.ResponseWriter, r *http.Request) {
-
+// ListPets converts echo context to params.
+func (w *ServerInterfaceWrapper) ListPets(ctx echo.Context) error {
 	var err error
 
 	// Parameter object where we will unmarshal all parameters from the context
 	var params ListPetsParams
-
 	// ------------- Optional query parameter "limit" -------------
 
-	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	err = runtime.BindQueryParameter("form", true, false, "limit", ctx.QueryParams(), &params.Limit)
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
-		return
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter limit: %s", err))
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListPets(w, r, params)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.ListPets(ctx, params)
+	return err
 }
 
-// CreatePet operation middleware
-func (siw *ServerInterfaceWrapper) CreatePet(w http.ResponseWriter, r *http.Request) {
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.CreatePet(w, r)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// DeletePet operation middleware
-func (siw *ServerInterfaceWrapper) DeletePet(w http.ResponseWriter, r *http.Request) {
-
+// CreatePet converts echo context to params.
+func (w *ServerInterfaceWrapper) CreatePet(ctx echo.Context) error {
 	var err error
 
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.CreatePet(ctx)
+	return err
+}
+
+// DeletePet converts echo context to params.
+func (w *ServerInterfaceWrapper) DeletePet(ctx echo.Context) error {
+	var err error
 	// ------------- Path parameter "petId" -------------
 	var petId int64
 
-	err = runtime.BindStyledParameterWithOptions("simple", "petId", chi.URLParam(r, "petId"), &petId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "petId", ctx.Param("petId"), &petId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "petId", Err: err})
-		return
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter petId: %s", err))
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.DeletePet(w, r, petId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.DeletePet(ctx, petId)
+	return err
 }
 
-// GetPetById operation middleware
-func (siw *ServerInterfaceWrapper) GetPetById(w http.ResponseWriter, r *http.Request) {
-
+// GetPetById converts echo context to params.
+func (w *ServerInterfaceWrapper) GetPetById(ctx echo.Context) error {
 	var err error
-
 	// ------------- Path parameter "petId" -------------
 	var petId int64
 
-	err = runtime.BindStyledParameterWithOptions("simple", "petId", chi.URLParam(r, "petId"), &petId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	err = runtime.BindStyledParameterWithOptions("simple", "petId", ctx.Param("petId"), &petId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
 	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "petId", Err: err})
-		return
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter petId: %s", err))
 	}
 
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.GetPetById(w, r, petId)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetPetById(ctx, petId)
+	return err
 }
 
-type UnescapedCookieParamError struct {
-	ParamName string
-	Err       error
+// This is a simple interface which specifies echo.Route addition functions which
+// are present on both echo.Echo and echo.Group, since we want to allow using
+// either of them for path registration
+type EchoRouter interface {
+	CONNECT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+	DELETE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+	GET(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+	HEAD(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+	OPTIONS(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+	PATCH(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+	POST(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+	PUT(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
+	TRACE(path string, h echo.HandlerFunc, m ...echo.MiddlewareFunc) *echo.Route
 }
 
-func (e *UnescapedCookieParamError) Error() string {
-	return fmt.Sprintf("error unescaping cookie parameter '%s'", e.ParamName)
+// RegisterHandlers adds each server route to the EchoRouter.
+func RegisterHandlers(router EchoRouter, si ServerInterface) {
+	RegisterHandlersWithBaseURL(router, si, "")
 }
 
-func (e *UnescapedCookieParamError) Unwrap() error {
-	return e.Err
-}
+// Registers handlers, and prepends BaseURL to the paths, so that the paths
+// can be served under a prefix.
+func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL string) {
 
-type UnmarshalingParamError struct {
-	ParamName string
-	Err       error
-}
-
-func (e *UnmarshalingParamError) Error() string {
-	return fmt.Sprintf("Error unmarshaling parameter %s as JSON: %s", e.ParamName, e.Err.Error())
-}
-
-func (e *UnmarshalingParamError) Unwrap() error {
-	return e.Err
-}
-
-type RequiredParamError struct {
-	ParamName string
-}
-
-func (e *RequiredParamError) Error() string {
-	return fmt.Sprintf("Query argument %s is required, but not found", e.ParamName)
-}
-
-type RequiredHeaderError struct {
-	ParamName string
-	Err       error
-}
-
-func (e *RequiredHeaderError) Error() string {
-	return fmt.Sprintf("Header parameter %s is required, but not found", e.ParamName)
-}
-
-func (e *RequiredHeaderError) Unwrap() error {
-	return e.Err
-}
-
-type InvalidParamFormatError struct {
-	ParamName string
-	Err       error
-}
-
-func (e *InvalidParamFormatError) Error() string {
-	return fmt.Sprintf("Invalid format for parameter %s: %s", e.ParamName, e.Err.Error())
-}
-
-func (e *InvalidParamFormatError) Unwrap() error {
-	return e.Err
-}
-
-type TooManyValuesForParamError struct {
-	ParamName string
-	Count     int
-}
-
-func (e *TooManyValuesForParamError) Error() string {
-	return fmt.Sprintf("Expected one value for %s, got %d", e.ParamName, e.Count)
-}
-
-// Handler creates http.Handler with routing matching OpenAPI spec.
-func Handler(si ServerInterface) http.Handler {
-	return HandlerWithOptions(si, ChiServerOptions{})
-}
-
-type ChiServerOptions struct {
-	BaseURL          string
-	BaseRouter       chi.Router
-	Middlewares      []MiddlewareFunc
-	ErrorHandlerFunc func(w http.ResponseWriter, r *http.Request, err error)
-}
-
-// HandlerFromMux creates http.Handler with routing matching OpenAPI spec based on the provided mux.
-func HandlerFromMux(si ServerInterface, r chi.Router) http.Handler {
-	return HandlerWithOptions(si, ChiServerOptions{
-		BaseRouter: r,
-	})
-}
-
-func HandlerFromMuxWithBaseURL(si ServerInterface, r chi.Router, baseURL string) http.Handler {
-	return HandlerWithOptions(si, ChiServerOptions{
-		BaseURL:    baseURL,
-		BaseRouter: r,
-	})
-}
-
-// HandlerWithOptions creates http.Handler with additional options
-func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handler {
-	r := options.BaseRouter
-
-	if r == nil {
-		r = chi.NewRouter()
-	}
-	if options.ErrorHandlerFunc == nil {
-		options.ErrorHandlerFunc = func(w http.ResponseWriter, r *http.Request, err error) {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-	}
 	wrapper := ServerInterfaceWrapper{
-		Handler:            si,
-		HandlerMiddlewares: options.Middlewares,
-		ErrorHandlerFunc:   options.ErrorHandlerFunc,
+		Handler: si,
 	}
 
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/health", wrapper.HealthCheck)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/pets", wrapper.ListPets)
-	})
-	r.Group(func(r chi.Router) {
-		r.Post(options.BaseURL+"/pets", wrapper.CreatePet)
-	})
-	r.Group(func(r chi.Router) {
-		r.Delete(options.BaseURL+"/pets/{petId}", wrapper.DeletePet)
-	})
-	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/pets/{petId}", wrapper.GetPetById)
-	})
+	router.GET(baseURL+"/health", wrapper.HealthCheck)
+	router.GET(baseURL+"/pets", wrapper.ListPets)
+	router.POST(baseURL+"/pets", wrapper.CreatePet)
+	router.DELETE(baseURL+"/pets/:petId", wrapper.DeletePet)
+	router.GET(baseURL+"/pets/:petId", wrapper.GetPetById)
 
-	return r
 }

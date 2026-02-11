@@ -2,8 +2,9 @@
 package echo
 
 import (
-	"net/http"
 	gen "openapi-mock/internal/generated/echo"
+
+	"github.com/labstack/echo/v4"
 )
 
 type CompositeHandlers struct {
@@ -17,18 +18,18 @@ func NewCompositeHandlers(echo *EchoHandlers, status *StatusHandlers) gen.Server
 
 var _ gen.ServerInterface = (*CompositeHandlers)(nil)
 
-func (c *CompositeHandlers) Echo(w http.ResponseWriter, r *http.Request) {
-	c.echo.Echo(w, r)
+func (c *CompositeHandlers) Echo(ctx echo.Context) error {
+	return c.echo.Echo(ctx)
 }
 
-func (c *CompositeHandlers) EchoHeaders(w http.ResponseWriter, r *http.Request) {
-	c.echo.EchoHeaders(w, r)
+func (c *CompositeHandlers) EchoHeaders(ctx echo.Context) error {
+	return c.echo.EchoHeaders(ctx)
 }
 
-func (c *CompositeHandlers) EchoPath(w http.ResponseWriter, r *http.Request, message string) {
-	c.echo.EchoPath(w, r, message)
+func (c *CompositeHandlers) EchoPath(ctx echo.Context, message string) error {
+	return c.echo.EchoPath(ctx, message)
 }
 
-func (c *CompositeHandlers) GetStatus(w http.ResponseWriter, r *http.Request) {
-	c.status.GetStatus(w, r)
+func (c *CompositeHandlers) GetStatus(ctx echo.Context) error {
+	return c.status.GetStatus(ctx)
 }
