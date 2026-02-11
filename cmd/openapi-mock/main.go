@@ -12,11 +12,9 @@ import (
 	"time"
 
 	"github.com/caarlos0/env/v11"
-	"github.com/go-chi/chi/v5"
 	"github.com/spf13/cobra"
 
-	gen "openapi-mock/internal/generated/petstore"
-	stubs "openapi-mock/internal/stubs/petstore"
+	"openapi-mock/internal/app"
 	"openapi-mock/pkg/metrics"
 	"openapi-mock/pkg/mgmt"
 	"openapi-mock/pkg/middleware"
@@ -85,17 +83,16 @@ func runServer(cfg Config) error {
 		mgmt.New(rec, cfg.MgmtPort).Start()
 	}
 
-	// Build handlers
-	pets := stubs.NewPetsHandlers(cfg.EnableLogging)
-	def := stubs.NewDefaultHandlers(cfg.EnableLogging)
-	handlers := stubs.NewCompositeHandlers(def, pets)
+	// Build app via wire (handles all routing)
+	httpApp, err := app.InitializeHTTPApp(cfg.EnableLogging)
+	if err != nil {
+		return fmt.Errorf("failed to initialize app: %w", err)
+	}
 
-	// Build router
-	r := chi.NewRouter()
-	r.Use(middleware.Recording(rec, m, cfg.EnableLogging))
-	gen.HandlerFromMux(handlers, r)
+	// Apply middleware
+	httpApp.Router.Use(middleware.Recording(rec, m, cfg.EnableLogging))
 
-	server := &http.Server{Addr: addr, Handler: r}
+	server := &http.Server{Addr: addr, Handler: httpApp.Router}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
