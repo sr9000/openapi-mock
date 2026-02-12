@@ -14,8 +14,10 @@ NC='\033[0m' # No Color
 HTTP_HOST="localhost"
 HTTP_PORT="8080"
 MGMT_PORT="9000"
+METRICS_PORT="9100"
 HTTP_URL="http://localhost:${HTTP_PORT}"
 MGMT_URL="http://localhost:${MGMT_PORT}"
+METRICS_URL="http://localhost:${METRICS_PORT}"
 # Path to the openapi-mock binary
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -155,6 +157,30 @@ test_clear_logs() {
         return 1
     fi
 }
+# Test 6: Check metrics endpoint
+test_metrics_endpoint() {
+    echo -e "\n${YELLOW}Test: Metrics endpoint (/metrics)${NC}"
+    local response
+    response=$(curl -s "${METRICS_URL}/metrics")
+
+    local failed=0
+
+    if echo "$response" | grep -q "http_requests_total"; then
+        print_result "Metrics endpoint contains http_requests_total" 0
+    else
+        print_result "Metrics endpoint missing http_requests_total" 1
+        failed=1
+    fi
+
+    if echo "$response" | grep -q "http_request_duration_seconds"; then
+        print_result "Metrics endpoint contains http_request_duration_seconds" 0
+    else
+        print_result "Metrics endpoint missing http_request_duration_seconds" 1
+        failed=1
+    fi
+
+    return $failed
+}
 # Main test runner
 main() {
     echo -e "${YELLOW}========================================${NC}"
@@ -170,6 +196,7 @@ main() {
     test_logs_empty_initially || failed=$((failed + 1))
     test_http_call_recording || failed=$((failed + 1))
     test_clear_logs || failed=$((failed + 1))
+    test_metrics_endpoint || failed=$((failed + 1))
     # Summary
     echo -e "\n${YELLOW}========================================${NC}"
     if [ $failed -eq 0 ]; then
