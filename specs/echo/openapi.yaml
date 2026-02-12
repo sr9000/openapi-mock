@@ -6,7 +6,7 @@ info:
 paths:
   /echo:
     post:
-      tags: [echo]
+      tags: [ echo ]
       operationId: Echo
       summary: Echo back the request body
       requestBody:
@@ -27,7 +27,7 @@ paths:
                 $ref: '#/components/schemas/EchoResponse'
   /echo/{message}:
     get:
-      tags: [echo]
+      tags: [ echo ]
       operationId: EchoPath
       summary: Echo back a message from the path
       parameters:
@@ -45,7 +45,7 @@ paths:
                 $ref: '#/components/schemas/EchoResponse'
   /echo/headers:
     get:
-      tags: [echo]
+      tags: [ echo ]
       operationId: EchoHeaders
       summary: Echo back request headers
       responses:
@@ -57,7 +57,7 @@ paths:
                 $ref: '#/components/schemas/HeadersResponse'
   /status:
     get:
-      tags: [status]
+      tags: [ status ]
       operationId: GetStatus
       summary: Get service status
       responses:
@@ -69,10 +69,32 @@ paths:
                 $ref: '#/components/schemas/StatusResponse'
   /isfine:
     get:
-      tags: [status]
+      tags: [ status ]
       operationId: IsFine
       summary: Check if service is fine
       responses:
+        '501':
+          description: Not implemented
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  function_name:
+                    type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  is_critical:
+                    type: boolean
         '218':
           description: It's fine
           content:
@@ -94,7 +116,7 @@ components:
           additionalProperties: true
     EchoResponse:
       type: object
-      required: [echo]
+      required: [ echo ]
       properties:
         echo:
           type: string
@@ -110,7 +132,7 @@ components:
             type: string
     StatusResponse:
       type: object
-      required: [status]
+      required: [ status ]
       properties:
         status:
           type: string

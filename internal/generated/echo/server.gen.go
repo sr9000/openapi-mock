@@ -360,6 +360,30 @@ func (response IsFine218JSONResponse) VisitIsFineResponse(w http.ResponseWriter)
 	return json.NewEncoder(w).Encode(response)
 }
 
+type IsFine500JSONResponse struct {
+	Error      *string `json:"error,omitempty"`
+	IsCritical *bool   `json:"is_critical,omitempty"`
+}
+
+func (response IsFine500JSONResponse) VisitIsFineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IsFine501JSONResponse struct {
+	Error        *string `json:"error,omitempty"`
+	FunctionName *string `json:"function_name,omitempty"`
+}
+
+func (response IsFine501JSONResponse) VisitIsFineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(501)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetStatusRequestObject struct {
 }
 

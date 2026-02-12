@@ -121,22 +121,30 @@ func generateOpenAPIMethod(structName string, spec *openapiSpec, op opInfo) stri
 func generateOpenAPIMethodBody(spec *openapiSpec, op opInfo, methodName string) string {
 	var buf bytes.Buffer
 
-	// Find first successful response
+	// Find response with smallest code
 	var successCode string
 	var successResp *openapi3.Response
-	for code, resp := range op.Operation.Responses.Map() {
-		if strings.HasPrefix(code, "2") {
-			successCode = code
-			successResp = resp.Value
-			break
-		}
+
+	responses := op.Operation.Responses.Map()
+	codes := make([]string, 0, len(responses))
+	for code := range responses {
+		codes = append(codes, code)
+	}
+	sort.Strings(codes)
+
+	if len(codes) > 0 {
+		successCode = codes[0]
+		successResp = responses[successCode].Value
 	}
 
 	if successCode == "" || successResp == nil {
-		// No declared success response: return empty 200
+		// No declared response: return empty 200
 		buf.WriteString(fmt.Sprintf("\treturn gen.%s200Response{}, nil\n", methodName))
 		return buf.String()
 	}
+
+	// Normalize code (e.g. "default" -> "Default")
+	successCode = toPascalCase(successCode)
 
 	// Decide whether this is a JSON response type (oapi-codegen generates both
 	// <Op><Code>JSONResponse and <Op><Code>Response depending on the spec).
