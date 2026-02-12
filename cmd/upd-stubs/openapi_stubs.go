@@ -141,12 +141,12 @@ func generateOpenAPIMethodBody(spec *openapiSpec, op opInfo, methodName string) 
 	// Decide whether this is a JSON response type (oapi-codegen generates both
 	// <Op><Code>JSONResponse and <Op><Code>Response depending on the spec).
 	jsonBody := responseHasJSONBody(successResp)
-	bodyExpr := responseBodyExpr(spec, successResp)
 
 	switch {
 	case jsonBody:
-		// JSON response wrappers
-		buf.WriteString(fmt.Sprintf("\treturn gen.%s%sJSONResponse(%s), nil\n", methodName, successCode, bodyExpr))
+		// For JSON responses, always return the generated wrapper type. For inline/anonymous
+		// schemas, this is the safest option and doesn't require us to guess the body type.
+		buf.WriteString(fmt.Sprintf("\treturn gen.%s%sJSONResponse{}, nil\n", methodName, successCode))
 	default:
 		// Empty/non-JSON response wrappers
 		buf.WriteString(fmt.Sprintf("\treturn gen.%s%sResponse{}, nil\n", methodName, successCode))
@@ -188,8 +188,10 @@ func responseBodyExpr(spec *openapiSpec, resp *openapi3.Response) string {
 	// This keeps stubs compiling even when schemas are inline/anonymous.
 	if schema.Ref == "" {
 		switch schema.Value.Type.Slice()[0] {
-		case "array", "object":
-			return fmt.Sprintf("%s{}", "")
+		case "array":
+			return "[]interface{}{}"
+		case "object":
+			return "map[string]interface{}{}"
 		}
 	}
 

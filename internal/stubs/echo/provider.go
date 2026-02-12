@@ -29,6 +29,10 @@ func (c *CompositeHandlers) EchoPath(ctx context.Context, request gen.EchoPathRe
 	return c.echo.EchoPath(ctx, request)
 }
 
+func (c *CompositeHandlers) IsFine(ctx context.Context, request gen.IsFineRequestObject) (gen.IsFineResponseObject, error) {
+	return c.status.IsFine(ctx, request)
+}
+
 func (c *CompositeHandlers) GetStatus(ctx context.Context, request gen.GetStatusRequestObject) (gen.GetStatusResponseObject, error) {
 	return c.status.GetStatus(ctx, request)
 }

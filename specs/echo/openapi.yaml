@@ -67,6 +67,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StatusResponse'
+  /isfine:
+    get:
+      tags: [status]
+      operationId: IsFine
+      summary: Check if service is fine
+      responses:
+        '218':
+          description: It's fine
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fine:
+                    type: boolean
 components:
   schemas:
     EchoRequest:

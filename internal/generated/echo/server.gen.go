@@ -27,6 +27,9 @@ type ServerInterface interface {
 	// Echo back a message from the path
 	// (GET /echo/{message})
 	EchoPath(w http.ResponseWriter, r *http.Request, message string)
+	// Check if service is fine
+	// (GET /isfine)
+	IsFine(w http.ResponseWriter, r *http.Request)
 	// Get service status
 	// (GET /status)
 	GetStatus(w http.ResponseWriter, r *http.Request)
@@ -51,6 +54,12 @@ func (_ Unimplemented) EchoHeaders(w http.ResponseWriter, r *http.Request) {
 // Echo back a message from the path
 // (GET /echo/{message})
 func (_ Unimplemented) EchoPath(w http.ResponseWriter, r *http.Request, message string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Check if service is fine
+// (GET /isfine)
+func (_ Unimplemented) IsFine(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -113,6 +122,20 @@ func (siw *ServerInterfaceWrapper) EchoPath(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.EchoPath(w, r, message)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// IsFine operation middleware
+func (siw *ServerInterfaceWrapper) IsFine(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.IsFine(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -259,6 +282,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/echo/{message}", wrapper.EchoPath)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/isfine", wrapper.IsFine)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/status", wrapper.GetStatus)
 	})
 
@@ -316,6 +342,24 @@ func (response EchoPath200JSONResponse) VisitEchoPathResponse(w http.ResponseWri
 	return json.NewEncoder(w).Encode(response)
 }
 
+type IsFineRequestObject struct {
+}
+
+type IsFineResponseObject interface {
+	VisitIsFineResponse(w http.ResponseWriter) error
+}
+
+type IsFine218JSONResponse struct {
+	Fine *bool `json:"fine,omitempty"`
+}
+
+func (response IsFine218JSONResponse) VisitIsFineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(218)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetStatusRequestObject struct {
 }
 
@@ -343,6 +387,9 @@ type StrictServerInterface interface {
 	// Echo back a message from the path
 	// (GET /echo/{message})
 	EchoPath(ctx context.Context, request EchoPathRequestObject) (EchoPathResponseObject, error)
+	// Check if service is fine
+	// (GET /isfine)
+	IsFine(ctx context.Context, request IsFineRequestObject) (IsFineResponseObject, error)
 	// Get service status
 	// (GET /status)
 	GetStatus(ctx context.Context, request GetStatusRequestObject) (GetStatusResponseObject, error)
@@ -463,6 +510,30 @@ func (sh *strictHandler) EchoPath(w http.ResponseWriter, r *http.Request, messag
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(EchoPathResponseObject); ok {
 		if err := validResponse.VisitEchoPathResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// IsFine operation middleware
+func (sh *strictHandler) IsFine(w http.ResponseWriter, r *http.Request) {
+	var request IsFineRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.IsFine(ctx, request.(IsFineRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "IsFine")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(IsFineResponseObject); ok {
+		if err := validResponse.VisitIsFineResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
