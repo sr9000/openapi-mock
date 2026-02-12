@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -120,6 +121,38 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 		}
 	}
 
+	// Determine operation order from file structure for stability
+	opOrder, _ := getOperationOrder(path)
+
+	// Sort operations within each tag
+	for tag := range spec.Tags {
+		sort.Slice(spec.Tags[tag], func(i, j int) bool {
+			op1 := spec.Tags[tag][i]
+			op2 := spec.Tags[tag][j]
+			key1 := op1.Path + "|" + op1.Method
+			key2 := op2.Path + "|" + op2.Method
+
+			idx1, ok1 := opOrder[key1]
+			idx2, ok2 := opOrder[key2]
+
+			if ok1 && ok2 {
+				return idx1 < idx2
+			}
+			if ok1 {
+				return true
+			}
+			if ok2 {
+				return false
+			}
+
+			// Fallback: stable sort by Path then Method
+			if op1.Path != op2.Path {
+				return op1.Path < op2.Path
+			}
+			return op1.Method < op2.Method
+		})
+	}
+
 	return spec, nil
 }
 
@@ -141,4 +174,54 @@ func getHandlerStructName(tag string) string {
 // getNewHandlerFuncName returns the constructor name for a tag's handlers
 func getNewHandlerFuncName(tag string) string {
 	return "New" + toPascalCase(tag) + "Handlers"
+}
+
+func getOperationOrder(path string) (map[string]int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var node yaml.Node
+	if err := yaml.NewDecoder(f).Decode(&node); err != nil {
+		return nil, err
+	}
+
+	if len(node.Content) == 0 {
+		return nil, nil
+	}
+	root := node.Content[0]
+
+	// Find "paths"
+	var pathsNode *yaml.Node
+	for i := 0; i < len(root.Content); i += 2 {
+		if root.Content[i].Value == "paths" {
+			pathsNode = root.Content[i+1]
+			break
+		}
+	}
+
+	if pathsNode == nil {
+		return nil, nil
+	}
+
+	order := make(map[string]int)
+	counter := 0
+
+	// pathsNode.Content contains key, value, key, value...
+	for i := 0; i < len(pathsNode.Content); i += 2 {
+		pathKey := pathsNode.Content[i].Value
+		pathItem := pathsNode.Content[i+1]
+
+		// pathItem.Content contains method, op, method, op...
+		for j := 0; j < len(pathItem.Content); j += 2 {
+			methodKey := strings.ToUpper(pathItem.Content[j].Value)
+			key := pathKey + "|" + methodKey
+			order[key] = counter
+			counter++
+		}
+	}
+
+	return order, nil
 }

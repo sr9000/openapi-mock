@@ -15,15 +15,15 @@ func NewEchoHandlers(enableLogging bool) *EchoHandlers {
 	return &EchoHandlers{EnableLogging: enableLogging}
 }
 
-func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersRequestObject) (gen.EchoHeadersResponseObject, error) {
+func (h *EchoHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) (gen.EchoResponseObject, error) {
 	if h.EnableLogging {
 		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [EchoHandlers] EchoHeaders", reqID)
+		log.Printf("[req_id=%s] [EchoHandlers] Echo", reqID)
 	}
 
 	_ = request
 
-	return gen.EchoHeaders200JSONResponse{}, nil
+	return gen.Echo200JSONResponse{}, nil
 }
 
 func (h *EchoHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequestObject) (gen.EchoPathResponseObject, error) {
@@ -37,13 +37,13 @@ func (h *EchoHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequest
 	return gen.EchoPath200JSONResponse{}, nil
 }
 
-func (h *EchoHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) (gen.EchoResponseObject, error) {
+func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersRequestObject) (gen.EchoHeadersResponseObject, error) {
 	if h.EnableLogging {
 		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [EchoHandlers] Echo", reqID)
+		log.Printf("[req_id=%s] [EchoHandlers] EchoHeaders", reqID)
 	}
 
 	_ = request
 
-	return gen.Echo200JSONResponse{}, nil
+	return gen.EchoHeaders200JSONResponse{}, nil
 }

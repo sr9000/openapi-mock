@@ -21,18 +21,18 @@ func (c *CompositeHandlers) HealthCheck(ctx context.Context, request gen.HealthC
 	return c.default_.HealthCheck(ctx, request)
 }
 
-func (c *CompositeHandlers) DeletePet(ctx context.Context, request gen.DeletePetRequestObject) (gen.DeletePetResponseObject, error) {
-	return c.pets.DeletePet(ctx, request)
-}
-
-func (c *CompositeHandlers) GetPetById(ctx context.Context, request gen.GetPetByIdRequestObject) (gen.GetPetByIdResponseObject, error) {
-	return c.pets.GetPetById(ctx, request)
-}
-
 func (c *CompositeHandlers) ListPets(ctx context.Context, request gen.ListPetsRequestObject) (gen.ListPetsResponseObject, error) {
 	return c.pets.ListPets(ctx, request)
 }
 
 func (c *CompositeHandlers) CreatePet(ctx context.Context, request gen.CreatePetRequestObject) (gen.CreatePetResponseObject, error) {
 	return c.pets.CreatePet(ctx, request)
+}
+
+func (c *CompositeHandlers) DeletePet(ctx context.Context, request gen.DeletePetRequestObject) (gen.DeletePetResponseObject, error) {
+	return c.pets.DeletePet(ctx, request)
+}
+
+func (c *CompositeHandlers) GetPetById(ctx context.Context, request gen.GetPetByIdRequestObject) (gen.GetPetByIdResponseObject, error) {
+	return c.pets.GetPetById(ctx, request)
 }

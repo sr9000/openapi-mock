@@ -17,22 +17,22 @@ func NewCompositeHandlers(echo *EchoHandlers, status *StatusHandlers) gen.Strict
 
 var _ gen.StrictServerInterface = (*CompositeHandlers)(nil)
 
-func (c *CompositeHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersRequestObject) (gen.EchoHeadersResponseObject, error) {
-	return c.echo.EchoHeaders(ctx, request)
+func (c *CompositeHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) (gen.EchoResponseObject, error) {
+	return c.echo.Echo(ctx, request)
 }
 
 func (c *CompositeHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequestObject) (gen.EchoPathResponseObject, error) {
 	return c.echo.EchoPath(ctx, request)
 }
 
-func (c *CompositeHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) (gen.EchoResponseObject, error) {
-	return c.echo.Echo(ctx, request)
-}
-
-func (c *CompositeHandlers) IsFine(ctx context.Context, request gen.IsFineRequestObject) (gen.IsFineResponseObject, error) {
-	return c.status.IsFine(ctx, request)
+func (c *CompositeHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersRequestObject) (gen.EchoHeadersResponseObject, error) {
+	return c.echo.EchoHeaders(ctx, request)
 }
 
 func (c *CompositeHandlers) GetStatus(ctx context.Context, request gen.GetStatusRequestObject) (gen.GetStatusResponseObject, error) {
 	return c.status.GetStatus(ctx, request)
+}
+
+func (c *CompositeHandlers) IsFine(ctx context.Context, request gen.IsFineRequestObject) (gen.IsFineResponseObject, error) {
+	return c.status.IsFine(ctx, request)
 }

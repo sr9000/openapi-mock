@@ -15,17 +15,6 @@ func NewPetsHandlers(enableLogging bool) *PetsHandlers {
 	return &PetsHandlers{EnableLogging: enableLogging}
 }
 
-func (h *PetsHandlers) CreatePet(ctx context.Context, request gen.CreatePetRequestObject) (gen.CreatePetResponseObject, error) {
-	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] CreatePet", reqID)
-	}
-
-	_ = request
-
-	return gen.CreatePet201Response{}, nil
-}
-
 func (h *PetsHandlers) ListPets(ctx context.Context, request gen.ListPetsRequestObject) (gen.ListPetsResponseObject, error) {
 	if h.EnableLogging {
 		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
@@ -35,6 +24,17 @@ func (h *PetsHandlers) ListPets(ctx context.Context, request gen.ListPetsRequest
 	_ = request
 
 	return gen.ListPets200JSONResponse{}, nil
+}
+
+func (h *PetsHandlers) CreatePet(ctx context.Context, request gen.CreatePetRequestObject) (gen.CreatePetResponseObject, error) {
+	if h.EnableLogging {
+		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
+		log.Printf("[req_id=%s] [PetsHandlers] CreatePet", reqID)
+	}
+
+	_ = request
+
+	return gen.CreatePet201Response{}, nil
 }
 
 func (h *PetsHandlers) DeletePet(ctx context.Context, request gen.DeletePetRequestObject) (gen.DeletePetResponseObject, error) {
