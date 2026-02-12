@@ -2,13 +2,15 @@ package main
 
 import (
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -121,19 +123,25 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 		}
 	}
 
-	// Determine operation order from file structure for stability
-	opOrder, _ := getOperationOrder(path)
+	// Determine operation order from StrictServerInterface in generated server code.
+	// This ensures that generated stubs match the interface order (e.g. methods are sorted).
+	serverGenPath := filepath.Join(openapiGenDir, relPath, "server.gen.go")
+	opOrder, _ := getMethodOrderFromInterface(serverGenPath, "StrictServerInterface")
 
 	// Sort operations within each tag
 	for tag := range spec.Tags {
 		sort.Slice(spec.Tags[tag], func(i, j int) bool {
 			op1 := spec.Tags[tag][i]
 			op2 := spec.Tags[tag][j]
-			key1 := op1.Path + "|" + op1.Method
-			key2 := op2.Path + "|" + op2.Method
 
-			idx1, ok1 := opOrder[key1]
-			idx2, ok2 := opOrder[key2]
+			// We try to match the operation ID (normalized if needed).
+			// If OperationID is empty (not common with strict mode), we might fall back.
+			// Ideally, oapi-codegen uses OperationID as function name.
+			id1 := toPascalCase(op1.OperationID)
+			id2 := toPascalCase(op2.OperationID)
+
+			idx1, ok1 := opOrder[id1]
+			idx2, ok2 := opOrder[id2]
 
 			if ok1 && ok2 {
 				return idx1 < idx2
@@ -176,52 +184,39 @@ func getNewHandlerFuncName(tag string) string {
 	return "New" + toPascalCase(tag) + "Handlers"
 }
 
-func getOperationOrder(path string) (map[string]int, error) {
-	f, err := os.Open(path)
+func getMethodOrderFromInterface(filePath string, interfaceName string) (map[string]int, error) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
-	}
-	defer f.Close()
-
-	var node yaml.Node
-	if err := yaml.NewDecoder(f).Decode(&node); err != nil {
-		return nil, err
-	}
-
-	if len(node.Content) == 0 {
-		return nil, nil
-	}
-	root := node.Content[0]
-
-	// Find "paths"
-	var pathsNode *yaml.Node
-	for i := 0; i < len(root.Content); i += 2 {
-		if root.Content[i].Value == "paths" {
-			pathsNode = root.Content[i+1]
-			break
-		}
-	}
-
-	if pathsNode == nil {
-		return nil, nil
 	}
 
 	order := make(map[string]int)
 	counter := 0
 
-	// pathsNode.Content contains key, value, key, value...
-	for i := 0; i < len(pathsNode.Content); i += 2 {
-		pathKey := pathsNode.Content[i].Value
-		pathItem := pathsNode.Content[i+1]
-
-		// pathItem.Content contains method, op, method, op...
-		for j := 0; j < len(pathItem.Content); j += 2 {
-			methodKey := strings.ToUpper(pathItem.Content[j].Value)
-			key := pathKey + "|" + methodKey
-			order[key] = counter
-			counter++
+	ast.Inspect(node, func(n ast.Node) bool {
+		typeSpec, ok := n.(*ast.TypeSpec)
+		if !ok {
+			return true
 		}
-	}
+		if typeSpec.Name.Name != interfaceName {
+			return true
+		}
+
+		interfaceType, ok := typeSpec.Type.(*ast.InterfaceType)
+		if !ok {
+			return true
+		}
+
+		for _, method := range interfaceType.Methods.List {
+			if len(method.Names) > 0 {
+				methodName := method.Names[0].Name
+				order[methodName] = counter
+				counter++
+			}
+		}
+		return false
+	})
 
 	return order, nil
 }

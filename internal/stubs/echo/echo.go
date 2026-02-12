@@ -26,17 +26,6 @@ func (h *EchoHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) 
 	return gen.Echo200JSONResponse{}, nil
 }
 
-func (h *EchoHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequestObject) (gen.EchoPathResponseObject, error) {
-	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [EchoHandlers] EchoPath", reqID)
-	}
-
-	_ = request
-
-	return gen.EchoPath200JSONResponse{}, nil
-}
-
 func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersRequestObject) (gen.EchoHeadersResponseObject, error) {
 	if h.EnableLogging {
 		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
@@ -46,4 +35,15 @@ func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersR
 	_ = request
 
 	return gen.EchoHeaders200JSONResponse{}, nil
+}
+
+func (h *EchoHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequestObject) (gen.EchoPathResponseObject, error) {
+	if h.EnableLogging {
+		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
+		log.Printf("[req_id=%s] [EchoHandlers] EchoPath", reqID)
+	}
+
+	_ = request
+
+	return gen.EchoPath200JSONResponse{}, nil
 }
