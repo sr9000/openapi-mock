@@ -15,19 +15,6 @@ func NewPetsHandlers(enableLogging bool) *PetsHandlers {
 	return &PetsHandlers{EnableLogging: enableLogging}
 }
 
-func (h *PetsHandlers) ListPets(ctx context.Context, request gen.ListPetsRequestObject) (gen.ListPetsResponseObject, error) {
-	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] ListPets", reqID)
-	}
-
-	_ = request
-
-	// ListPets200JSONResponse is an inline array type in server.gen.go, so we can
-	// safely return an empty value.
-	return gen.ListPets200JSONResponse{}, nil
-}
-
 func (h *PetsHandlers) CreatePet(ctx context.Context, request gen.CreatePetRequestObject) (gen.CreatePetResponseObject, error) {
 	if h.EnableLogging {
 		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
@@ -36,8 +23,18 @@ func (h *PetsHandlers) CreatePet(ctx context.Context, request gen.CreatePetReque
 
 	_ = request
 
-	// Spec declares an empty 201 response in this API.
 	return gen.CreatePet201Response{}, nil
+}
+
+func (h *PetsHandlers) ListPets(ctx context.Context, request gen.ListPetsRequestObject) (gen.ListPetsResponseObject, error) {
+	if h.EnableLogging {
+		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
+		log.Printf("[req_id=%s] [PetsHandlers] ListPets", reqID)
+	}
+
+	_ = request
+
+	return gen.ListPets200JSONResponse{}, nil
 }
 
 func (h *PetsHandlers) DeletePet(ctx context.Context, request gen.DeletePetRequestObject) (gen.DeletePetResponseObject, error) {
