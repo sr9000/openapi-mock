@@ -180,14 +180,39 @@
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
         "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" }
       },
-      "title": "Latency Percentiles (Overall + by Status)",
+      "title": "Latency Percentiles",
       "type": "timeseries",
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le))", "legendFormat": "p50 overall", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le))", "legendFormat": "p90 overall", "refId": "B" },
-        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le))", "legendFormat": "p95 overall", "refId": "C" },
-        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le))", "legendFormat": "p99 overall", "refId": "D" },
-        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le, status))", "legendFormat": "p95 [{{status}}]", "refId": "E" }
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.80, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p80",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p90",
+          "refId": "C"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p95",
+          "refId": "D"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{method=\"$method\", endpoint=\"$endpoint\", status=~\"$status\"}[$__rate_interval])) by (le))",
+          "legendFormat": "p99",
+          "refId": "E"
+        }
       ]
     }
   ],
@@ -200,7 +225,22 @@
       { "current": { "text": "OpenAPI Mock Metrics", "value": "OpenAPI Mock Metrics" }, "includeAll": false, "label": "Data Source", "name": "datasource", "options": [], "query": "prometheus", "refresh": 1, "regex": "", "type": "datasource" },
       { "current": {}, "datasource": { "type": "prometheus", "uid": "${datasource}" }, "definition": "label_values(http_requests_total, method)", "includeAll": false, "label": "HTTP Method", "name": "method", "options": [], "query": { "qryType": 1, "query": "label_values(http_requests_total, method)", "refId": "PrometheusVariableQueryEditor-VariableQuery" }, "refresh": 2, "regex": "", "sort": 1, "type": "query" },
       { "current": {}, "datasource": { "type": "prometheus", "uid": "${datasource}" }, "definition": "label_values(http_requests_total{method=\"$method\"}, endpoint)", "includeAll": false, "label": "Endpoint", "name": "endpoint", "options": [], "query": { "qryType": 1, "query": "label_values(http_requests_total{method=\"$method\"}, endpoint)", "refId": "PrometheusVariableQueryEditor-VariableQuery" }, "refresh": 2, "regex": "", "sort": 1, "type": "query" },
-      { "current": { "text": "All", "value": "$__all" }, "datasource": { "type": "prometheus", "uid": "${datasource}" }, "definition": "label_values(http_requests_total{method=\"$method\", endpoint=\"$endpoint\"}, status)", "includeAll": true, "label": "Status", "multi": true, "name": "status", "options": [], "query": { "qryType": 1, "query": "label_values(http_requests_total{method=\"$method\", endpoint=\"$endpoint\"}, status)", "refId": "PrometheusVariableQueryEditor-VariableQuery" }, "refresh": 2, "regex": "", "sort": 1, "type": "query" }
+      {
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" },
+        "datasource": { "type": "prometheus", "uid": "${datasource}" },
+        "definition": "label_values(http_requests_total{method=\"$method\", endpoint=\"$endpoint\"}, status)",
+        "includeAll": true,
+        "label": "Status",
+        "multi": false,
+        "name": "status",
+        "options": [],
+        "query": "label_values(http_requests_total{method=\"$method\", endpoint=\"$endpoint\"}, status)",
+        "refresh": 2,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
     ]
   },
   "time": { "from": "now-15m", "to": "now" },
