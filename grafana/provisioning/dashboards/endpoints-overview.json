@@ -814,7 +814,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "OpenAPI Mock - HTTP Methods Overview",
-  "uid": "openapi-mock-methods-overview",
+  "title": "OpenAPI Mock - HTTP Endpoints Overview",
+  "uid": "openapi-mock-endpoints-overview",
   "version": 1
 }

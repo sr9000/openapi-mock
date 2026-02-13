@@ -1227,6 +1227,6 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "OpenAPI Mock - HTTP Endpoint Details",
-  "uid": "openapi-mock-method-details",
+  "uid": "openapi-mock-enpoint-details",
   "version": 1
 }
