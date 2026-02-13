@@ -28,6 +28,9 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	fmt.Fprintf(&buf, "\t\"github.com/go-chi/chi/v5\"\n")
 	fmt.Fprintf(&buf, "\t\"github.com/google/wire\"\n\n")
 
+	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/metrics\"\n")
+	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/middleware\"\n")
+
 	// Import all generated packages first, then stubs
 	type specImport struct {
 		StubAlias string
@@ -95,11 +98,24 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 			structName := getHandlerStructName(tag)
 			params = append(params, fmt.Sprintf("%s *%s.%s", sanitizeFieldName(tag), imp.StubAlias, structName))
 		}
+
+		handlerParams := make([]string, len(params))
+		copy(handlerParams, params)
+
+		params = append(params, "errHandlers *middleware.ErrorHandlers")
 		fmt.Fprintf(&buf, "%s) %s.ServerInterface {\n", strings.Join(params, ", "), imp.GenAlias)
-		fmt.Fprintf(&buf, "\tstrict := %s.NewCompositeHandlers(%s)\n", imp.StubAlias, extractFieldNames(params))
-		fmt.Fprintf(&buf, "\treturn %s.NewStrictHandler(strict, nil)\n", imp.GenAlias)
+		fmt.Fprintf(&buf, "\tstrict := %s.NewCompositeHandlers(%s)\n", imp.StubAlias, extractFieldNames(handlerParams))
+		fmt.Fprintf(&buf, "\treturn %s.NewStrictHandlerWithOptions(strict, nil, %s.StrictHTTPServerOptions{\n", imp.GenAlias, imp.GenAlias)
+		fmt.Fprintf(&buf, "\t\tRequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,\n")
+		fmt.Fprintf(&buf, "\t\tResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,\n")
+		fmt.Fprintf(&buf, "\t})\n")
 		fmt.Fprintf(&buf, "}\n\n")
 	}
+
+	// Error handlers provider
+	fmt.Fprintf(&buf, "func provideErrorHandlers(m *metrics.Metrics) *middleware.ErrorHandlers {\n")
+	fmt.Fprintf(&buf, "\treturn middleware.NewErrorHandlers(m)\n")
+	fmt.Fprintf(&buf, "}\n\n")
 
 	// Router provider
 	fmt.Fprintf(&buf, "func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, ")
@@ -139,12 +155,13 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		}
 		fmt.Fprintf(&buf, "\tprovide%sHandlers,\n", toPascalCase(spec.PkgName))
 	}
+	fmt.Fprintf(&buf, "\tprovideErrorHandlers,\n")
 	fmt.Fprintf(&buf, "\tprovideHTTPRouter,\n")
 	fmt.Fprintf(&buf, "\twire.Struct(new(HTTPApp), \"*\"),\n")
 	fmt.Fprintf(&buf, ")\n\n")
 
 	// InitializeHTTPApp
-	fmt.Fprintf(&buf, "func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, enableLogging bool) (*HTTPApp, error) {\n")
+	fmt.Fprintf(&buf, "func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, m *metrics.Metrics, enableLogging bool) (*HTTPApp, error) {\n")
 	fmt.Fprintf(&buf, "\twire.Build(HTTPProviderSet)\n")
 	fmt.Fprintf(&buf, "\treturn nil, nil\n")
 	fmt.Fprintf(&buf, "}\n")
