@@ -37,14 +37,47 @@ func main() {
 	root := &cobra.Command{Use: "openapi-mock", Short: "OpenAPI mock server"}
 
 	run := &cobra.Command{
-		Use: "run", Short: "Run server", Args: cobra.MaximumNArgs(2),
+		Use:   "run",
+		Short: "Run server",
+		// Backward compat: allow positional HOST PORT.
+		Args: cobra.MaximumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var cfg Config
-			env.Parse(&cfg)
+			if err := env.Parse(&cfg); err != nil {
+				return fmt.Errorf("failed to parse env: %w", err)
+			}
 
-			if v, _ := cmd.Flags().GetString("port"); v != "" {
+			// Flags > env
+			if cmd.Flags().Changed("host") {
+				v, _ := cmd.Flags().GetString("host")
+				cfg.Host = v
+			}
+			if cmd.Flags().Changed("port") {
+				v, _ := cmd.Flags().GetString("port")
 				cfg.Port = v
 			}
+			if cmd.Flags().Changed("mgmt-port") {
+				v, _ := cmd.Flags().GetString("mgmt-port")
+				cfg.MgmtPort = v
+			}
+			if cmd.Flags().Changed("metrics-port") {
+				v, _ := cmd.Flags().GetString("metrics-port")
+				cfg.MetricsPort = v
+			}
+			if cmd.Flags().Changed("mgmt-enabled") {
+				v, _ := cmd.Flags().GetBool("mgmt-enabled")
+				cfg.EnableMgmt = v
+			}
+			if cmd.Flags().Changed("metrics-enabled") {
+				v, _ := cmd.Flags().GetBool("metrics-enabled")
+				cfg.EnableMetrics = v
+			}
+			if cmd.Flags().Changed("http-logging") {
+				v, _ := cmd.Flags().GetBool("http-logging")
+				cfg.EnableLogging = v
+			}
+
+			// Positional args override too (highest priority), for backwards compatibility.
 			if len(args) >= 1 {
 				cfg.Host = args[0]
 			}
@@ -55,7 +88,17 @@ func main() {
 			return runServer(cfg)
 		},
 	}
-	run.Flags().StringP("port", "p", "", "Port")
+
+	// Flags mirror env vars.
+	// Note: we intentionally don't set these from env in flag defaults,
+	// because env.Parse already did; this keeps precedence simple.
+	run.Flags().String("host", "", "Host/interface to bind (env: HOST)")
+	run.Flags().StringP("port", "p", "", "HTTP port to bind (env: PORT)")
+	run.Flags().String("mgmt-port", "", "Management API port (env: MGMT_PORT)")
+	run.Flags().String("metrics-port", "", "Prometheus metrics port (env: METRICS_PORT)")
+	run.Flags().Bool("mgmt-enabled", true, "Enable management API (env: MGMT_ENABLED)")
+	run.Flags().Bool("metrics-enabled", true, "Enable metrics endpoint (env: METRICS_ENABLED)")
+	run.Flags().Bool("http-logging", true, "Enable HTTP request logging (env: HTTP_LOGGING)")
 
 	root.AddCommand(run)
 	root.AddCommand(&cobra.Command{
@@ -76,11 +119,11 @@ func runServer(cfg Config) error {
 	var m *metrics.Metrics
 	if cfg.EnableMetrics {
 		m = metrics.NewHTTP(cfg.MetricsPort)
-		m.Start()
+		_ = m.Start()
 	}
 
 	if cfg.EnableMgmt {
-		mgmt.New(rec, cfg.MgmtPort).Start()
+		_ = mgmt.New(rec, cfg.MgmtPort).Start()
 	}
 
 	// Build middlewares
