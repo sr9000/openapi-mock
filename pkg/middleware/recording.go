@@ -51,16 +51,19 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, enableLogging bool) f
 
 			defer func() {
 				if err := recover(); err != nil {
+					duration := time.Since(start)
+					panicMsg := fmt.Sprintf("%v", err)
 					rec.Record(recorder.CallRecord{
 						RequestID:  reqID,
 						Method:     r.Method + " " + r.URL.Path,
 						Timestamp:  start,
 						Request:    string(bodyBytes),
-						Panic:      fmt.Sprintf("%v", err),
-						DurationMs: time.Since(start).Milliseconds(),
+						Panic:      panicMsg,
+						DurationMs: duration.Milliseconds(),
 					})
 					if m != nil {
-						m.RecordHTTPRequest(r.Method, r.URL.Path, time.Since(start).Milliseconds(), "panic")
+						m.RecordHTTPRequest(r.Method, r.URL.Path, duration.Milliseconds(), 500)
+						m.RecordHTTPPanic(r.Method, r.URL.Path, panicMsg)
 					}
 					http.Error(w, "Internal Server Error", 500)
 				}
@@ -73,12 +76,6 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, enableLogging bool) f
 			next.ServeHTTP(rw, r)
 
 			duration := time.Since(start)
-			status := "success"
-			if rw.statusCode >= 400 && rw.statusCode < 500 {
-				status = "client_error"
-			} else if rw.statusCode >= 500 {
-				status = "server_error"
-			}
 
 			rec.Record(recorder.CallRecord{
 				RequestID:  reqID,
@@ -90,7 +87,7 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, enableLogging bool) f
 			})
 
 			if m != nil {
-				m.RecordHTTPRequest(r.Method, r.URL.Path, duration.Milliseconds(), status)
+				m.RecordHTTPRequest(r.Method, r.URL.Path, duration.Milliseconds(), rw.statusCode)
 			}
 
 			if enableLogging {

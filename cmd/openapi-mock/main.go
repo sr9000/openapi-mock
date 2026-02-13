@@ -89,7 +89,7 @@ func runServer(cfg Config) error {
 	}
 
 	// Build app via wire (handles all routing)
-	httpApp, err := app.InitializeHTTPApp(middlewares, cfg.EnableLogging)
+	httpApp, err := app.InitializeHTTPApp(middlewares, m, cfg.EnableLogging)
 	if err != nil {
 		return fmt.Errorf("failed to initialize app: %w", err)
 	}

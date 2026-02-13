@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -24,6 +25,8 @@ type Metrics struct {
 	// HTTP metrics
 	HTTPRequestsTotal   *prometheus.CounterVec
 	HTTPRequestDuration *prometheus.HistogramVec
+	HTTPErrorsTotal     *prometheus.CounterVec
+	HTTPPanicsTotal     *prometheus.CounterVec
 
 	// Resource metrics (custom gauges)
 	MemoryUsage *prometheus.GaugeVec
@@ -54,6 +57,20 @@ func NewHTTP(port string) *Metrics {
 			},
 			[]string{"method", "path", "status"},
 		),
+		HTTPErrorsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_errors_total",
+				Help: "Total number of unhandled HTTP errors from handlers",
+			},
+			[]string{"method", "path", "error"},
+		),
+		HTTPPanicsTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_panics_total",
+				Help: "Total number of panics caught in HTTP handlers",
+			},
+			[]string{"method", "path", "panic"},
+		),
 		MemoryUsage: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Name: "http_memory_bytes",
@@ -74,6 +91,8 @@ func NewHTTP(port string) *Metrics {
 	// Register HTTP metrics
 	registry.MustRegister(m.HTTPRequestsTotal)
 	registry.MustRegister(m.HTTPRequestDuration)
+	registry.MustRegister(m.HTTPErrorsTotal)
+	registry.MustRegister(m.HTTPPanicsTotal)
 	registry.MustRegister(m.MemoryUsage)
 	registry.MustRegister(m.Goroutines)
 
@@ -108,13 +127,36 @@ func (m *Metrics) RecordPanic(method, panicMsg string) {
 	m.PanicsTotal.WithLabelValues(method, panicMsg).Inc()
 }
 
-// RecordHTTPRequest records an HTTP request with its duration and status
-func (m *Metrics) RecordHTTPRequest(method, path string, durationMs int64, status string) {
+// RecordHTTPRequest records an HTTP request with its duration and status code
+func (m *Metrics) RecordHTTPRequest(method, path string, durationMs int64, statusCode int) {
+	status := strconv.Itoa(statusCode)
 	if m.HTTPRequestsTotal != nil {
 		m.HTTPRequestsTotal.WithLabelValues(method, path, status).Inc()
 	}
 	if m.HTTPRequestDuration != nil {
 		m.HTTPRequestDuration.WithLabelValues(method, path, status).Observe(float64(durationMs) / 1000.0)
+	}
+}
+
+// RecordHTTPError records an unhandled error from HTTP handler
+func (m *Metrics) RecordHTTPError(method, path, errorMsg string) {
+	// Truncate error message to prevent high cardinality
+	if len(errorMsg) > 100 {
+		errorMsg = errorMsg[:100] + "..."
+	}
+	if m.HTTPErrorsTotal != nil {
+		m.HTTPErrorsTotal.WithLabelValues(method, path, errorMsg).Inc()
+	}
+}
+
+// RecordHTTPPanic records a panic caught in HTTP handler
+func (m *Metrics) RecordHTTPPanic(method, path, panicMsg string) {
+	// Truncate panic message to prevent high cardinality
+	if len(panicMsg) > 100 {
+		panicMsg = panicMsg[:100] + "..."
+	}
+	if m.HTTPPanicsTotal != nil {
+		m.HTTPPanicsTotal.WithLabelValues(method, path, panicMsg).Inc()
 	}
 }
 
