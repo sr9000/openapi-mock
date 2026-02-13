@@ -98,7 +98,7 @@
           "sort": "desc"
         }
       },
-      "title": "Latency by Method (p95)",
+      "title": "Latency by Endpoint (p95)",
       "type": "timeseries",
       "targets": [
         {
@@ -106,8 +106,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[$__rate_interval])) by (le, method))",
-          "legendFormat": "{{method}}",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[$__rate_interval])) by (le, method, path))",
+          "legendFormat": "{{method}} {{path}}",
           "refId": "A"
         }
       ]
@@ -171,28 +171,13 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".*error.*"
+              "options": ".*[45][0-9]{2}.*"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
                   "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*panic.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "dark-red",
                   "mode": "fixed"
                 }
               }
@@ -220,7 +205,7 @@
           "sort": "desc"
         }
       },
-      "title": "Latency by Method and Status (p95)",
+      "title": "Latency by Endpoint and Status (p95)",
       "type": "timeseries",
       "targets": [
         {
@@ -228,8 +213,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{status=~\"error|panic\"}[$__rate_interval])) by (le, method, status))",
-          "legendFormat": "{{method}} [{{status}}]",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{status=~\"[45]..\"}[$__rate_interval])) by (le, method, path, status))",
+          "legendFormat": "{{method}} {{path}} [{{status}}]",
           "refId": "A"
         }
       ]
@@ -311,7 +296,7 @@
           "sort": "desc"
         }
       },
-      "title": "RPS by Method",
+      "title": "RPS by Endpoint",
       "type": "timeseries",
       "targets": [
         {
@@ -319,8 +304,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_requests_total[$__rate_interval])) by (method)",
-          "legendFormat": "{{method}}",
+          "expr": "sum(rate(http_requests_total[$__rate_interval])) by (method, path)",
+          "legendFormat": "{{method}} {{path}}",
           "refId": "A"
         }
       ]
@@ -384,28 +369,13 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": ".*error.*"
+              "options": ".*[45][0-9]{2}.*"
             },
             "properties": [
               {
                 "id": "color",
                 "value": {
                   "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": ".*panic.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "dark-red",
                   "mode": "fixed"
                 }
               }
@@ -433,7 +403,7 @@
           "sort": "desc"
         }
       },
-      "title": "RPS by Method and Status (Error/Panic)",
+      "title": "RPS by Endpoint and Status (4xx/5xx)",
       "type": "timeseries",
       "targets": [
         {
@@ -441,8 +411,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_requests_total{status=~\"error|panic\"}[$__rate_interval])) by (method, status)",
-          "legendFormat": "{{method}} [{{status}}]",
+          "expr": "sum(rate(http_requests_total{status=~\"[45]..\"}[$__rate_interval])) by (method, path, status)",
+          "legendFormat": "{{method}} {{path}} [{{status}}]",
           "refId": "A"
         }
       ]
@@ -524,7 +494,7 @@
           "sort": "desc"
         }
       },
-      "title": "Error Rate by Method (%)",
+      "title": "Error Rate by Endpoint (4xx/5xx %)",
       "type": "timeseries",
       "targets": [
         {
@@ -532,8 +502,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_requests_total{status=\"error\"}[$__rate_interval])) by (method) / sum(rate(http_requests_total[$__rate_interval])) by (method)",
-          "legendFormat": "{{method}} error",
+          "expr": "sum(rate(http_requests_total{status=~\"[45]..\"}[$__rate_interval])) by (method, path) / sum(rate(http_requests_total[$__rate_interval])) by (method, path)",
+          "legendFormat": "{{method}} {{path}}",
           "refId": "A"
         }
       ]
@@ -615,7 +585,7 @@
           "sort": "desc"
         }
       },
-      "title": "Panic Rate by Method (%)",
+      "title": "Success Rate by Endpoint (2xx %)",
       "type": "timeseries",
       "targets": [
         {
@@ -623,8 +593,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_requests_total{status=\"panic\"}[$__rate_interval])) by (method) / sum(rate(http_requests_total[$__rate_interval])) by (method)",
-          "legendFormat": "{{method}} panic",
+          "expr": "sum(rate(http_requests_total{status=~\"2..\"}[$__rate_interval])) by (method, path) / sum(rate(http_requests_total[$__rate_interval])) by (method, path)",
+          "legendFormat": "{{method}} {{path}}",
           "refId": "A"
         }
       ]
@@ -635,6 +605,7 @@
   "schemaVersion": 42,
   "tags": [
     "openapi-mock",
+    "http",
     "methods"
   ],
   "templating": {
@@ -661,7 +632,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "OpenAPI Mock - Methods Overview",
+  "title": "OpenAPI Mock - HTTP Methods Overview",
   "uid": "openapi-mock-methods-overview",
   "version": 1
 }
