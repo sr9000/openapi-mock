@@ -11,6 +11,8 @@ import (
 
 	echogen "openapi-mock/internal/generated/echo"
 	petstoregen "openapi-mock/internal/generated/petstore"
+	"openapi-mock/pkg/metrics"
+	"openapi-mock/pkg/middleware"
 
 	echostub "openapi-mock/internal/stubs/echo"
 	petstorestub "openapi-mock/internal/stubs/petstore"
@@ -24,14 +26,24 @@ type HTTPApp struct {
 	PetstorePets    *petstorestub.PetsHandlers
 }
 
-func provideEchoHandlers(echo *echostub.EchoHandlers, status *echostub.StatusHandlers) echogen.ServerInterface {
+func provideEchoHandlers(echo *echostub.EchoHandlers, status *echostub.StatusHandlers, errHandlers *middleware.ErrorHandlers) echogen.ServerInterface {
 	strict := echostub.NewCompositeHandlers(echo, status)
-	return echogen.NewStrictHandler(strict, nil)
+	return echogen.NewStrictHandlerWithOptions(strict, nil, echogen.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
+		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
+	})
 }
 
-func providePetstoreHandlers(default_ *petstorestub.DefaultHandlers, pets *petstorestub.PetsHandlers) petstoregen.ServerInterface {
+func providePetstoreHandlers(default_ *petstorestub.DefaultHandlers, pets *petstorestub.PetsHandlers, errHandlers *middleware.ErrorHandlers) petstoregen.ServerInterface {
 	strict := petstorestub.NewCompositeHandlers(default_, pets)
-	return petstoregen.NewStrictHandler(strict, nil)
+	return petstoregen.NewStrictHandlerWithOptions(strict, nil, petstoregen.StrictHTTPServerOptions{
+		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
+		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
+	})
+}
+
+func provideErrorHandlers(m *metrics.Metrics) *middleware.ErrorHandlers {
+	return middleware.NewErrorHandlers(m)
 }
 
 func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, echoHandler echogen.ServerInterface, petstoreHandler petstoregen.ServerInterface) *chi.Mux {
@@ -51,11 +63,12 @@ var HTTPProviderSet = wire.NewSet(
 	petstorestub.NewDefaultHandlers,
 	petstorestub.NewPetsHandlers,
 	providePetstoreHandlers,
+	provideErrorHandlers,
 	provideHTTPRouter,
 	wire.Struct(new(HTTPApp), "*"),
 )
 
-func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, enableLogging bool) (*HTTPApp, error) {
+func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, m *metrics.Metrics, enableLogging bool) (*HTTPApp, error) {
 	wire.Build(HTTPProviderSet)
 	return nil, nil
 }
