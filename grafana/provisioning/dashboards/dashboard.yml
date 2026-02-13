@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: 'gRPC Mock Dashboards'
+  - name: 'HTTP Mock Dashboards'
     orgId: 1
-    folder: 'gRPC Mock'
+    folder: 'HTTP Mock'
     folderUid: 'openapi-mock'
     type: file
     disableDeletion: false
