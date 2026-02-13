@@ -40,13 +40,13 @@ func main() {
 		// Happy path traffic
 		{rpsFunc: sineWave(50, 50, 120*time.Second, 0), task: listPetsTask("happy")},
 		{rpsFunc: sineWave(45, 35, 70*time.Second, 0), task: createPetTask("Boots-Cats")},
-		{rpsFunc: sineWave(30, 30, 26*time.Second, 0), task: getPetTask(1)},
+		{rpsFunc: sineWave(30, 30, 126*time.Second, 0), task: getPetTask(1)},
 
 		// Periodic unhandled errors from strict handler error path
-		{rpsFunc: sineWave(5, 15, 40*time.Second, 0), task: createPetTask("error: Alice")},
-		{rpsFunc: sineWave(3, 13, 34*time.Second, 5*time.Second), task: createPetTask("error: Bob")},
+		{rpsFunc: sineWave(5, 15, 140*time.Second, 0), task: createPetTask("error: Alice")},
+		{rpsFunc: sineWave(3, 13, 134*time.Second, 5*time.Second), task: createPetTask("error: Bob")},
 		{rpsFunc: sineWave(7, 10, 88*time.Second, 0), task: getPetTask(500)},
-		{rpsFunc: sineWave(2, 5, 33*time.Second, 0), task: getPetTask(404)},
+		{rpsFunc: sineWave(2, 5, 133*time.Second, 0), task: getPetTask(404)},
 
 		// Periodic panics caught by middleware
 		{rpsFunc: sineWave(2, 10, 120*time.Second, 0), task: createPetTask("panic: 42")},

@@ -37,7 +37,13 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, enableLogging bool) f
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			b := make([]byte, 8)
-			rand.Read(b)
+			if _, err := rand.Read(b); err != nil {
+				// Best-effort request ID; fallback to time-based entropy.
+				now := time.Now().UnixNano()
+				for i := 0; i < len(b); i++ {
+					b[i] = byte(now >> (8 * i))
+				}
+			}
 			reqID := fmt.Sprintf("%x", b)
 			start := time.Now()
 
@@ -72,7 +78,7 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, enableLogging bool) f
 					})
 					if m != nil {
 						m.RecordHTTPRequest(r.Method, pathLabel, duration.Milliseconds(), 500)
-						m.RecordHTTPPanic(r.Method, pathLabel, panicMsg)
+						m.RecordHTTPPanic(r.Method, pathLabel, 500, panicMsg)
 					}
 					http.Error(w, "Internal Server Error", 500)
 				}

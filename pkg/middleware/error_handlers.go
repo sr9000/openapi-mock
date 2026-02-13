@@ -20,7 +20,8 @@ func NewErrorHandlers(m *metrics.Metrics) *ErrorHandlers {
 // These result in 400 Bad Request
 func (h *ErrorHandlers) RequestErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	if h.metrics != nil {
-		h.metrics.RecordHTTPError(r.Method, r.URL.Path, err.Error())
+		endpoint := routeTemplateFromRequest(r)
+		h.metrics.RecordHTTPError(r.Method, endpoint, http.StatusBadRequest, err.Error())
 	}
 	http.Error(w, err.Error(), http.StatusBadRequest)
 }
@@ -29,7 +30,8 @@ func (h *ErrorHandlers) RequestErrorHandler(w http.ResponseWriter, r *http.Reque
 // These result in 500 Internal Server Error
 func (h *ErrorHandlers) ResponseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	if h.metrics != nil {
-		h.metrics.RecordHTTPError(r.Method, r.URL.Path, err.Error())
+		endpoint := routeTemplateFromRequest(r)
+		h.metrics.RecordHTTPError(r.Method, endpoint, http.StatusInternalServerError, err.Error())
 	}
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
