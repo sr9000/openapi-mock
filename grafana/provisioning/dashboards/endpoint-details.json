@@ -65,9 +65,10 @@
             "hideFrom": { "legend": false, "tooltip": false, "viz": false },
             "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5,
             "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false,
-            "stacking": { "group": "A", "mode": "percent" }, "thresholdsStyle": { "mode": "off" }
+            "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" }
           },
-          "mappings": [], "max": 1, "min": 0,
+          "mappings": [],
+          "min": 0, "max": 1,
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
           "unit": "percentunit"
         },
@@ -86,7 +87,7 @@
       },
       "title": "Status Distribution (% Stacked)",
       "type": "timeseries",
-      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(http_requests_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])) by (status)", "legendFormat": "{{status}}", "refId": "A" }]
+      "targets": [{ "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(http_requests_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])) by (status) / ignoring(status) group_left sum(rate(http_requests_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval]))", "legendFormat": "{{status}}", "refId": "A" }]
     },
     {
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
@@ -133,9 +134,10 @@
             "hideFrom": { "legend": false, "tooltip": false, "viz": false },
             "insertNulls": false, "lineInterpolation": "linear", "lineWidth": 1, "pointSize": 5,
             "scaleDistribution": { "type": "linear" }, "showPoints": "auto", "spanNulls": false,
-            "stacking": { "group": "A", "mode": "percent" }, "thresholdsStyle": { "mode": "off" }
+            "stacking": { "group": "A", "mode": "normal" }, "thresholdsStyle": { "mode": "off" }
           },
-          "mappings": [], "max": 1, "min": 0,
+          "mappings": [],
+          "min": 0, "max": 1,
           "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
           "unit": "percentunit"
         },
@@ -150,8 +152,8 @@
       "title": "Errors + Panics Distribution (% Stacked)",
       "type": "timeseries",
       "targets": [
-        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(http_errors_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])) by (message)", "legendFormat": "error: {{message}}", "refId": "A" },
-        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(http_panics_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])) by (message)", "legendFormat": "panic: {{message}}", "refId": "B" }
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(http_errors_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])) by (message) / scalar(sum(rate(http_errors_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])) + sum(rate(http_panics_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])))", "legendFormat": "error: {{message}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${datasource}" }, "expr": "sum(rate(http_panics_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])) by (message) / scalar(sum(rate(http_errors_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])) + sum(rate(http_panics_total{method=\"$method\", endpoint=\"$endpoint\"}[$__rate_interval])))", "legendFormat": "panic: {{message}}", "refId": "B" }
       ]
     },
     {
