@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -13,11 +14,12 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-const (
-	specsDir         = "specs"
-	openapiGenDir    = "internal/generated"
-	openapiStubsDir  = "internal/stubs"
-	openapiModulePfx = "openapi-mock"
+const openapiModulePfx = "openapi-mock"
+
+var (
+	specsDir        = "specs"
+	openapiGenDir   = "internal/generated"
+	openapiStubsDir = "internal/stubs"
 )
 
 // openapiSpec represents a discovered OpenAPI specification
@@ -42,6 +44,12 @@ type opInfo struct {
 // discoverOpenAPISpecs finds all OpenAPI specs in the specs directory
 func discoverOpenAPISpecs() ([]*openapiSpec, error) {
 	var specs []*openapiSpec
+	if _, err := os.Stat(specsDir); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
 
 	err := filepath.Walk(specsDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -64,11 +72,12 @@ func discoverOpenAPISpecs() ([]*openapiSpec, error) {
 	})
 
 	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil // No specs directory is OK
-		}
 		return nil, err
 	}
+
+	sort.Slice(specs, func(i, j int) bool {
+		return specs[i].RelPath < specs[j].RelPath
+	})
 
 	return specs, nil
 }
@@ -84,6 +93,9 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 	dir := filepath.Dir(path)
 	relPath := strings.TrimPrefix(dir, specsDir+string(os.PathSeparator))
 	relPath = filepath.ToSlash(relPath) // Normalize to forward slashes
+	if relPath == "." || relPath == "" {
+		relPath = filepath.Base(specsDir)
+	}
 
 	pkgName := strings.ReplaceAll(filepath.Base(relPath), "-", "_")
 
@@ -104,11 +116,6 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 				continue
 			}
 
-			tags := op.Tags
-			if len(tags) == 0 {
-				tags = []string{"default"}
-			}
-
 			info := opInfo{
 				OperationID: op.OperationID,
 				Method:      method,
@@ -116,17 +123,18 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 				Operation:   op,
 			}
 
-			for _, tag := range tags {
-				tagName := strings.ToLower(strings.ReplaceAll(tag, " ", "_"))
-				spec.Tags[tagName] = append(spec.Tags[tagName], info)
-			}
+			tagName := normalizeTagName(primaryTag(op.Tags))
+			spec.Tags[tagName] = append(spec.Tags[tagName], info)
 		}
 	}
 
 	// Determine operation order from StrictServerInterface in generated server code.
 	// This ensures that generated stubs match the interface order (e.g. methods are sorted).
 	serverGenPath := filepath.Join(openapiGenDir, relPath, "server.gen.go")
-	opOrder, _ := getMethodOrderFromInterface(serverGenPath, "StrictServerInterface")
+	opOrder, err := getMethodOrderFromInterface(serverGenPath, "StrictServerInterface")
+	if err != nil {
+		log.Printf("warning: failed to read %s for method ordering: %v", serverGenPath, err)
+	}
 
 	// Sort operations within each tag
 	for tag := range spec.Tags {
@@ -137,8 +145,8 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 			// We try to match the operation ID (normalized if needed).
 			// If OperationID is empty (not common with strict mode), we might fall back.
 			// Ideally, oapi-codegen uses OperationID as function name.
-			id1 := toPascalCase(op1.OperationID)
-			id2 := toPascalCase(op2.OperationID)
+			id1 := getOperationMethodName(op1)
+			id2 := getOperationMethodName(op2)
 
 			idx1, ok1 := opOrder[id1]
 			idx2, ok2 := opOrder[id2]
@@ -162,6 +170,29 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 	}
 
 	return spec, nil
+}
+
+func primaryTag(tags []string) string {
+	if len(tags) == 0 {
+		return "default"
+	}
+	return tags[0]
+}
+
+func normalizeTagName(tag string) string {
+	tag = strings.TrimSpace(strings.ToLower(tag))
+	tag = strings.ReplaceAll(tag, " ", "_")
+	if tag == "" {
+		return "default"
+	}
+	return tag
+}
+
+func getOperationMethodName(op opInfo) string {
+	if op.OperationID != "" {
+		return toPascalCase(op.OperationID)
+	}
+	return toPascalCase(op.Method + "_" + strings.ReplaceAll(op.Path, "/", "_"))
 }
 
 // getSortedTags returns tag names sorted alphabetically

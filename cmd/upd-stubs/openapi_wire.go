@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	goimports "golang.org/x/tools/imports"
 )
 
 // generateOpenAPIWireFile generates internal/app/openapi_wire.go
@@ -38,28 +40,39 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		GenAlias  string
 		GenPath   string
 	}
-	var imports []specImport
+	type wireSpec struct {
+		Spec *openapiSpec
+		Imp  specImport
+	}
+	var wireSpecs []wireSpec
 
-	for _, spec := range specs {
-		stubAlias := strings.ReplaceAll(spec.RelPath, "/", "") + "stub"
-		genAlias := strings.ReplaceAll(spec.RelPath, "/", "") + "gen"
-		imports = append(imports, specImport{
-			StubAlias: stubAlias,
-			StubPath:  spec.StubPkgPath,
-			GenAlias:  genAlias,
-			GenPath:   spec.GenPkgPath,
+	for i, spec := range specs {
+		aliasBase := strings.ReplaceAll(spec.RelPath, "/", "_")
+		aliasBase = strings.ReplaceAll(aliasBase, "-", "_")
+		stubAlias := fmt.Sprintf("%sstub%d", aliasBase, i)
+		genAlias := fmt.Sprintf("%sgen%d", aliasBase, i)
+		wireSpecs = append(wireSpecs, wireSpec{
+			Spec: spec,
+			Imp: specImport{
+				StubAlias: stubAlias,
+				StubPath:  spec.StubPkgPath,
+				GenAlias:  genAlias,
+				GenPath:   spec.GenPkgPath,
+			},
 		})
 	}
 
-	sort.Slice(imports, func(i, j int) bool {
-		return imports[i].StubPath < imports[j].StubPath
+	sort.Slice(wireSpecs, func(i, j int) bool {
+		return wireSpecs[i].Imp.StubPath < wireSpecs[j].Imp.StubPath
 	})
 
-	for _, imp := range imports {
+	for _, ws := range wireSpecs {
+		imp := ws.Imp
 		fmt.Fprintf(&buf, "\t%s %q\n", imp.GenAlias, imp.GenPath)
 	}
 	buf.WriteString("\n")
-	for _, imp := range imports {
+	for _, ws := range wireSpecs {
+		imp := ws.Imp
 		fmt.Fprintf(&buf, "\t%s %q\n", imp.StubAlias, imp.StubPath)
 	}
 
@@ -68,18 +81,9 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	// HTTPApp struct
 	fmt.Fprintf(&buf, "type HTTPApp struct {\n")
 	fmt.Fprintf(&buf, "\tRouter *chi.Mux\n")
-	for _, imp := range imports {
-		var spec *openapiSpec
-		for _, s := range specs {
-			if s.StubPkgPath == imp.StubPath {
-				spec = s
-				break
-			}
-		}
-		if spec == nil {
-			continue
-		}
-
+	for _, ws := range wireSpecs {
+		imp := ws.Imp
+		spec := ws.Spec
 		for _, tag := range spec.getSortedTags() {
 			fieldName := toPascalCase(spec.PkgName) + toPascalCase(tag)
 			structName := getHandlerStructName(tag)
@@ -89,8 +93,9 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	fmt.Fprintf(&buf, "}\n\n")
 
 	// Provider functions: per-spec strict handlers
-	for i, imp := range imports {
-		spec := specs[i]
+	for _, ws := range wireSpecs {
+		imp := ws.Imp
+		spec := ws.Spec
 
 		fmt.Fprintf(&buf, "func provide%sHandlers(", toPascalCase(spec.PkgName))
 		var params []string
@@ -120,8 +125,9 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	// Router provider
 	fmt.Fprintf(&buf, "func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, ")
 	var routerParams []string
-	for i, imp := range imports {
-		spec := specs[i]
+	for _, ws := range wireSpecs {
+		imp := ws.Imp
+		spec := ws.Spec
 		routerParams = append(routerParams, fmt.Sprintf("%s %s.ServerInterface", spec.PkgName+"Handler", imp.GenAlias))
 	}
 	fmt.Fprintf(&buf, "%s) *chi.Mux {\n", strings.Join(routerParams, ", "))
@@ -129,8 +135,9 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	fmt.Fprintf(&buf, "\tfor _, mw := range middlewares {\n")
 	fmt.Fprintf(&buf, "\t\tr.Use(mw)\n")
 	fmt.Fprintf(&buf, "\t}\n")
-	for i, imp := range imports {
-		spec := specs[i]
+	for _, ws := range wireSpecs {
+		imp := ws.Imp
+		spec := ws.Spec
 		fmt.Fprintf(&buf, "\t%s.HandlerFromMux(%s, r)\n", imp.GenAlias, spec.PkgName+"Handler")
 	}
 	fmt.Fprintf(&buf, "\treturn r\n")
@@ -138,17 +145,9 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 
 	// ProviderSet
 	fmt.Fprintf(&buf, "var HTTPProviderSet = wire.NewSet(\n")
-	for _, imp := range imports {
-		var spec *openapiSpec
-		for _, s := range specs {
-			if s.StubPkgPath == imp.StubPath {
-				spec = s
-				break
-			}
-		}
-		if spec == nil {
-			continue
-		}
+	for _, ws := range wireSpecs {
+		imp := ws.Imp
+		spec := ws.Spec
 		for _, tag := range spec.getSortedTags() {
 			newFunc := getNewHandlerFuncName(tag)
 			fmt.Fprintf(&buf, "\t%s.%s,\n", imp.StubAlias, newFunc)
@@ -169,6 +168,11 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	src, err := format.Source(buf.Bytes())
 	if err != nil {
 		log.Printf("failed to format openapi_wire.go: %v\nSource:\n%s", err, buf.String())
+		return err
+	}
+
+	src, err = goimports.Process("openapi_wire.go", src, nil)
+	if err != nil {
 		return err
 	}
 

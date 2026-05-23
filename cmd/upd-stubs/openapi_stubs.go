@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"go/ast"
 	"go/format"
+	"go/parser"
+	"go/token"
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
+	"strconv"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	goimports "golang.org/x/tools/imports"
@@ -95,10 +97,7 @@ func generateOpenAPIStubFile(outDir string, spec *openapiSpec, tag string, ops [
 func generateOpenAPIMethod(structName string, spec *openapiSpec, op opInfo) string {
 	var buf bytes.Buffer
 
-	methodName := op.OperationID
-	if methodName == "" {
-		methodName = toPascalCase(op.Method + "_" + strings.ReplaceAll(op.Path, "/", "_"))
-	}
+	methodName := getOperationMethodName(op)
 
 	// Strict signature types
 	reqType := fmt.Sprintf("gen.%sRequestObject", methodName)
@@ -121,21 +120,7 @@ func generateOpenAPIMethod(structName string, spec *openapiSpec, op opInfo) stri
 func generateOpenAPIMethodBody(spec *openapiSpec, op opInfo, methodName string) string {
 	var buf bytes.Buffer
 
-	// Find response with smallest code
-	var successCode string
-	var successResp *openapi3.Response
-
-	responses := op.Operation.Responses.Map()
-	codes := make([]string, 0, len(responses))
-	for code := range responses {
-		codes = append(codes, code)
-	}
-	sort.Strings(codes)
-
-	if len(codes) > 0 {
-		successCode = codes[0]
-		successResp = responses[successCode].Value
-	}
+	successCode, successResp := pickPrimaryResponse(op.Operation.Responses.Map())
 
 	if successCode == "" || successResp == nil {
 		// No declared response: return empty 200
@@ -171,47 +156,6 @@ func responseHasJSONBody(resp *openapi3.Response) bool {
 	return jsonContent != nil && jsonContent.Schema != nil
 }
 
-func responseBodyExpr(spec *openapiSpec, resp *openapi3.Response) string {
-	if resp == nil || resp.Content == nil {
-		return "map[string]string{\"status\": \"ok\"}"
-	}
-
-	jsonContent := resp.Content.Get("application/json")
-	if jsonContent == nil || jsonContent.Schema == nil {
-		return "map[string]string{\"status\": \"ok\"}"
-	}
-
-	schema := jsonContent.Schema
-	if schema.Value == nil {
-		// If it's a $ref, oapi-codegen will have the model in types.gen.go, but schema.Value
-		// can still be nil depending on how kin-openapi provides it; keep it safe.
-		return "map[string]string{\"status\": \"ok\"}"
-	}
-
-	// For strict-server JSON responses, the response wrapper type expects the *exact*
-	// element type generated in server.gen.go. For many specs, list responses are
-	// generated as anonymous structs, so we simply return an empty literal of the
-	// wrapper type, which is always assignable.
-	//
-	// This keeps stubs compiling even when schemas are inline/anonymous.
-	if schema.Ref == "" {
-		switch schema.Value.Type.Slice()[0] {
-		case "array":
-			return "[]interface{}{}"
-		case "object":
-			return "map[string]interface{}{}"
-		}
-	}
-
-	// If the schema is a $ref to a named model, try to instantiate it.
-	if schema.Ref != "" {
-		modelName := filepath.Base(schema.Ref)
-		return fmt.Sprintf("gen.%s{}", modelName)
-	}
-
-	return "map[string]string{\"status\": \"ok\"}"
-}
-
 func updateOpenAPIStubFile(path string, spec *openapiSpec, tag string, ops []opInfo) error {
 	// Read existing file
 	existingSrc, err := os.ReadFile(path)
@@ -227,10 +171,7 @@ func updateOpenAPIStubFile(path string, spec *openapiSpec, tag string, ops []opI
 	// Find missing methods
 	var newMethods []string
 	for _, op := range ops {
-		methodName := op.OperationID
-		if methodName == "" {
-			methodName = toPascalCase(op.Method + "_" + strings.ReplaceAll(op.Path, "/", "_"))
-		}
+		methodName := getOperationMethodName(op)
 		if _, exists := existingMethods[methodName]; !exists {
 			method := generateOpenAPIMethod(structName, spec, op)
 			newMethods = append(newMethods, method)
@@ -255,40 +196,94 @@ func updateOpenAPIStubFile(path string, spec *openapiSpec, tag string, ops []opI
 		return err
 	}
 
+	src, err = goimports.Process(path, src, nil)
+	if err != nil {
+		return err
+	}
+
 	return os.WriteFile(path, src, 0o644)
 }
 
 func parseExistingMethods(src []byte, structName string) map[string]bool {
 	methods := make(map[string]bool)
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, "existing.go", src, parser.SkipObjectResolution)
+	if err != nil {
+		return methods
+	}
 
-	// Simple parsing - look for "func (h *StructName) MethodName("
-	lines := strings.Split(string(src), "\n")
-	prefix := fmt.Sprintf("func (h *%s)", structName)
-	altPrefix := fmt.Sprintf("func (h *%s)", structName)
+	ast.Inspect(node, func(n ast.Node) bool {
+		fn, ok := n.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || len(fn.Recv.List) == 0 {
+			return true
+		}
 
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, prefix) || strings.HasPrefix(line, altPrefix) {
-			// Extract method name
-			rest := strings.TrimPrefix(line, prefix)
-			rest = strings.TrimPrefix(rest, altPrefix)
-			rest = strings.TrimSpace(rest)
-			if idx := strings.Index(rest, "("); idx > 0 {
-				methodName := rest[:idx]
-				methods[methodName] = true
+		recvType := fn.Recv.List[0].Type
+		switch r := recvType.(type) {
+		case *ast.StarExpr:
+			ident, ok := r.X.(*ast.Ident)
+			if ok && ident.Name == structName {
+				methods[fn.Name.Name] = true
+			}
+		case *ast.Ident:
+			if r.Name == structName {
+				methods[fn.Name.Name] = true
 			}
 		}
-	}
+		return true
+	})
 
 	return methods
 }
 
-// sortedStringKeys returns sorted keys from a map
-func sortedStringKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+func pickPrimaryResponse(responses map[string]*openapi3.ResponseRef) (string, *openapi3.Response) {
+	type candidate struct {
+		code     string
+		priority int
+		numeric  int
 	}
-	sort.Strings(keys)
-	return keys
+
+	var best *candidate
+	for code, ref := range responses {
+		if ref == nil || ref.Value == nil {
+			continue
+		}
+
+		priority := responseCodePriority(code)
+		numeric := 0
+		if n, err := strconv.Atoi(code); err == nil {
+			numeric = n
+		}
+
+		cur := &candidate{code: code, priority: priority, numeric: numeric}
+		if best == nil || cur.priority < best.priority || (cur.priority == best.priority && cur.numeric < best.numeric) || (cur.priority == best.priority && cur.numeric == best.numeric && cur.code < best.code) {
+			best = cur
+		}
+	}
+
+	if best == nil {
+		return "", nil
+	}
+	return best.code, responses[best.code].Value
+}
+
+func responseCodePriority(code string) int {
+	if code == "default" {
+		return 5
+	}
+	if len(code) > 0 && code[0] >= '1' && code[0] <= '5' {
+		switch code[0] {
+		case '2':
+			return 0
+		case '3':
+			return 1
+		case '1':
+			return 2
+		case '4':
+			return 3
+		case '5':
+			return 4
+		}
+	}
+	return 6
 }
