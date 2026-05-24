@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"openapi-mock/pkg/metrics"
+	"openapi-mock/pkg/observability"
 )
 
 // ErrorHandlers provides custom error handlers for StrictServer that record metrics
@@ -21,7 +22,11 @@ func NewErrorHandlers(m *metrics.Metrics) *ErrorHandlers {
 func (h *ErrorHandlers) RequestErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	if h.metrics != nil {
 		endpoint := routeTemplateFromRequest(r)
-		h.metrics.RecordHTTPError(r.Method, endpoint, http.StatusBadRequest, err.Error())
+		operation := observability.Operation(r.Context())
+		if operation == "" {
+			operation = "unknown"
+		}
+		h.metrics.RecordHTTPError(r.Method, endpoint, operation, http.StatusBadRequest, "request_parse")
 	}
 	http.Error(w, err.Error(), http.StatusBadRequest)
 }
@@ -31,7 +36,11 @@ func (h *ErrorHandlers) RequestErrorHandler(w http.ResponseWriter, r *http.Reque
 func (h *ErrorHandlers) ResponseErrorHandler(w http.ResponseWriter, r *http.Request, err error) {
 	if h.metrics != nil {
 		endpoint := routeTemplateFromRequest(r)
-		h.metrics.RecordHTTPError(r.Method, endpoint, http.StatusInternalServerError, err.Error())
+		operation := observability.Operation(r.Context())
+		if operation == "" {
+			operation = "unknown"
+		}
+		h.metrics.RecordHTTPError(r.Method, endpoint, operation, http.StatusInternalServerError, "handler_error")
 	}
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"openapi-mock/pkg/metrics"
 	"openapi-mock/pkg/mgmt"
 	"openapi-mock/pkg/middleware"
+	"openapi-mock/pkg/observability"
 	"openapi-mock/pkg/recorder"
 )
 
@@ -29,6 +31,20 @@ type Config struct {
 	EnableMgmt    bool   `env:"MGMT_ENABLED" envDefault:"true"`
 	EnableMetrics bool   `env:"METRICS_ENABLED" envDefault:"true"`
 	EnableLogging bool   `env:"HTTP_LOGGING" envDefault:"true"`
+
+	RequestIDHeaders       string `env:"REQUEST_ID_HEADERS" envDefault:"X-Request-ID,X-Request-Id,X-Correlation-ID"`
+	RequestIDResponseHeader string `env:"REQUEST_ID_RESPONSE_HEADER" envDefault:"X-Request-ID"`
+
+	LogFormat string `env:"LOG_FORMAT" envDefault:"json"`
+	LogOutput string `env:"LOG_OUTPUT" envDefault:"stdout"`
+	LogFile   string `env:"LOG_FILE" envDefault:""`
+	LogLevel  string `env:"LOG_LEVEL" envDefault:"info"`
+
+	TraceEnabled       bool    `env:"TRACE_ENABLED" envDefault:"false"`
+	TraceExporter      string  `env:"TRACE_EXPORTER" envDefault:"none"`
+	TraceEndpoint      string  `env:"TRACE_ENDPOINT" envDefault:""`
+	TraceFile          string  `env:"TRACE_FILE" envDefault:"./traces.json"`
+	TraceSamplingRatio float64 `env:"TRACE_SAMPLING_RATIO" envDefault:"1.0"`
 }
 
 var version = "dev"
@@ -126,9 +142,45 @@ func runServer(cfg Config) error {
 		_ = mgmt.New(rec, cfg.MgmtPort).Start()
 	}
 
+	baseLogger, logCloser, err := observability.NewLogger(observability.LogConfig{
+		Enabled: cfg.EnableLogging,
+		Format:  cfg.LogFormat,
+		Output:  cfg.LogOutput,
+		File:    cfg.LogFile,
+		Level:   cfg.LogLevel,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize logger: %w", err)
+	}
+	if logCloser != nil {
+		defer logCloser.Close()
+	}
+
+	traceShutdown, err := observability.SetupTracing(context.Background(), observability.TraceConfig{
+		Enabled:       cfg.TraceEnabled,
+		Exporter:      cfg.TraceExporter,
+		Endpoint:      cfg.TraceEndpoint,
+		File:          cfg.TraceFile,
+		SamplingRatio: cfg.TraceSamplingRatio,
+		ServiceName:   "openapi-mock",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize tracing: %w", err)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = traceShutdown(shutdownCtx)
+	}()
+
 	// Build middlewares
 	middlewares := []func(http.Handler) http.Handler{
-		middleware.Recording(rec, m, cfg.EnableLogging),
+		middleware.Recording(rec, m, middleware.RecordingOptions{
+			EnableLogging:           cfg.EnableLogging,
+			RequestIDHeaders:        splitCSV(cfg.RequestIDHeaders),
+			RequestIDResponseHeader: cfg.RequestIDResponseHeader,
+			BaseLogger:              baseLogger,
+		}),
 	}
 
 	// Build app via wire (handles all routing)
@@ -153,4 +205,16 @@ func runServer(cfg Config) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return server.Shutdown(ctx)
+}
+
+func splitCSV(s string) []string {
+	parts := strings.Split(s, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
