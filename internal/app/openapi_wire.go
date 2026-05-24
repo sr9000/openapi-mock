@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -26,18 +27,44 @@ type HTTPApp struct {
 	PetstorePets    *petstorestub1.PetsHandlers
 }
 
+func provideEchoStrictMiddlewares() []echogen0.StrictMiddlewareFunc {
+	return []echogen0.StrictMiddlewareFunc{
+		func(next echogen0.StrictHandlerFunc, operationID string) echogen0.StrictHandlerFunc {
+			wrapped := middleware.OperationContext()(func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+				return next(ctx, w, r, request)
+			}, operationID)
+			return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+				return wrapped(ctx, w, r, request)
+			}
+		},
+	}
+}
+
 func provideEchoHandlers(echo *echostub0.EchoHandlers, status *echostub0.StatusHandlers, errHandlers *middleware.ErrorHandlers) echogen0.ServerInterface {
 	strict := echostub0.NewCompositeHandlers(echo, status)
-	strictMiddlewares := []echogen0.StrictMiddlewareFunc{middleware.OperationContext()}
+	strictMiddlewares := provideEchoStrictMiddlewares()
 	return echogen0.NewStrictHandlerWithOptions(strict, strictMiddlewares, echogen0.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
 	})
 }
 
+func providePetstoreStrictMiddlewares() []petstoregen1.StrictMiddlewareFunc {
+	return []petstoregen1.StrictMiddlewareFunc{
+		func(next petstoregen1.StrictHandlerFunc, operationID string) petstoregen1.StrictHandlerFunc {
+			wrapped := middleware.OperationContext()(func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+				return next(ctx, w, r, request)
+			}, operationID)
+			return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+				return wrapped(ctx, w, r, request)
+			}
+		},
+	}
+}
+
 func providePetstoreHandlers(default_ *petstorestub1.DefaultHandlers, pets *petstorestub1.PetsHandlers, errHandlers *middleware.ErrorHandlers) petstoregen1.ServerInterface {
 	strict := petstorestub1.NewCompositeHandlers(default_, pets)
-	strictMiddlewares := []petstoregen1.StrictMiddlewareFunc{middleware.OperationContext()}
+	strictMiddlewares := providePetstoreStrictMiddlewares()
 	return petstoregen1.NewStrictHandlerWithOptions(strict, strictMiddlewares, petstoregen1.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
