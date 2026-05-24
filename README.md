@@ -254,3 +254,6 @@ make compose-logs
 # Остановка
 make compose-down
 ```
+
+> Примечание по Docker Compose: для снижения риска известных сбоев CLI при `up --build` репозиторий использует двухшаговый запуск (`build` с plain progress, затем `up -d`).
+> Это внешняя проблема плагина Compose, а не ошибка Go-кода этого проекта. Локально проверялась версия: `Docker Compose v2.29.7-desktop.1`.

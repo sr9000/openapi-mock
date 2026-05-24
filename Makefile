@@ -52,8 +52,10 @@ docker-dev:
 compose-up:
 	@echo
 	@echo "===================="
+	@echo "Building full stack images (plain progress)..."
+	docker compose --progress plain -f docker-compose-grafana.yaml build
 	@echo "Starting full stack (OpenAPI Mock + Prometheus + Grafana)..."
-	docker compose -f docker-compose-grafana.yaml up --build -d
+	docker compose -f docker-compose-grafana.yaml up -d
 compose-logs:
 	@echo
 	@echo "===================="
