@@ -5,9 +5,9 @@ FROM golang:1.25-alpine AS tools
 
 # 0. Setup fastet mirror for apk to speed up dependency installation
 # Completely overwrite the file with LeaseWeb's fast mirror
-RUN echo "https://ftp.halifax.rwth-aachen.de/alpine/latest-stable/main/" > /etc/apk/repositories && \
-    echo "https://ftp.halifax.rwth-aachen.de/alpine/latest-stable/community/" >> /etc/apk/repositories && \
-    apk update
+RUN echo "https://ftp.halifax.rwth-aachen.de/alpine/latest-stable/main/" > /etc/apk/repositories
+RUN echo "https://ftp.halifax.rwth-aachen.de/alpine/latest-stable/community/" >> /etc/apk/repositories
+RUN apk update
 
 # 1. Install System Dependencies
 #    - make: to run the pipeline
