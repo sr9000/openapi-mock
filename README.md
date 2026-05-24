@@ -334,9 +334,18 @@ curl http://localhost:9000/docs/echo/v1/openapi.json
 
 # Soft reset mock runtime
 curl -X POST http://localhost:9000/reset
+
+# После reset context-values очищаются
+curl http://localhost:9000/context-values/case-a
 # Открыть Swagger UI в браузере
 open http://localhost:9000/doc
 ```
+
+### Миграционные заметки
+
+- Эндпоинты `POST /clear` и `DELETE /clear` удалены.
+- Для очистки логов используйте `DELETE /logs`.
+- Для выборки логов по request id используйте `GET /logs/{request_id}`.
 
 ## 🧪 Генератор нагрузки для примера Petstore
 
