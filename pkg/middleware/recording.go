@@ -44,6 +44,7 @@ type RecordingOptions struct {
 	RequestIDResponseHeader string
 	BaseLogger             zerolog.Logger
 	Tracer                 trace.Tracer
+	OperationResolver      OperationResolver
 }
 
 func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions) func(http.Handler) http.Handler {
@@ -101,10 +102,7 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 				if pathLabel == "" {
 					pathLabel = routeTemplateFromRequest(r)
 				}
-				operation := observability.Operation(r.Context())
-				if operation == "" {
-					operation = "unknown"
-				}
+				operation := resolveOperationLabel(r, opts.OperationResolver)
 				if err := recover(); err != nil {
 					duration := time.Since(start)
 					panicMsg := fmt.Sprintf("%v", err)
@@ -149,10 +147,7 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 				pathLabel = routeTemplateFromRequest(r)
 			}
 
-			operation := observability.Operation(r.Context())
-			if operation == "" {
-				operation = "unknown"
-			}
+			operation := resolveOperationLabel(r, opts.OperationResolver)
 
 			duration := time.Since(start)
 			span.SetAttributes(

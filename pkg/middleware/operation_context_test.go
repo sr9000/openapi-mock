@@ -19,7 +19,7 @@ import (
 func TestOperationContext_LabelsSuccessfulRequests(t *testing.T) {
 	m := metrics.NewHTTP("0")
 	rec := recorder.New()
-	errHandlers := NewErrorHandlers(m)
+	errHandlers := NewErrorHandlers(m, nil)
 
 	echoHandlers := echostub.NewEchoHandlers(false)
 	statusHandlers := echostub.NewStatusHandlers(false)

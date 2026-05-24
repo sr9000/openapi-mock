@@ -44,17 +44,34 @@ func providePetstoreHandlers(default_ *petstorestub1.DefaultHandlers, pets *pets
 	})
 }
 
-func provideErrorHandlers(m *metrics.Metrics) *middleware.ErrorHandlers {
-	return middleware.NewErrorHandlers(m)
+func provideOperationResolver() middleware.OperationResolver {
+	resolver := middleware.NewOperationResolver(map[string]string{
+		"DELETE /pets/{petId}": "DeletePet",
+		"GET /echo/headers":    "EchoHeaders",
+		"GET /echo/{message}":  "EchoPath",
+		"GET /health":          "HealthCheck",
+		"GET /isfine":          "IsFine",
+		"GET /pets":            "ListPets",
+		"GET /pets/{petId}":    "GetPetById",
+		"GET /status":          "GetStatus",
+		"POST /echo":           "Echo",
+		"POST /pets":           "CreatePet",
+	})
+	middleware.SetOperationResolver(resolver)
+	return resolver
 }
 
-func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, echoHandler echogen0.ServerInterface, petstoreHandler petstoregen1.ServerInterface) *chi.Mux {
+func provideErrorHandlers(m *metrics.Metrics, operationResolver middleware.OperationResolver) *middleware.ErrorHandlers {
+	return middleware.NewErrorHandlers(m, operationResolver)
+}
+
+func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, errHandlers *middleware.ErrorHandlers, echoHandler echogen0.ServerInterface, petstoreHandler petstoregen1.ServerInterface) *chi.Mux {
 	r := chi.NewRouter()
 	for _, mw := range middlewares {
 		r.Use(mw)
 	}
-	echogen0.HandlerFromMux(echoHandler, r)
-	petstoregen1.HandlerFromMux(petstoreHandler, r)
+	echogen0.HandlerWithOptions(echoHandler, echogen0.ChiServerOptions{BaseRouter: r, ErrorHandlerFunc: errHandlers.RequestErrorHandler})
+	petstoregen1.HandlerWithOptions(petstoreHandler, petstoregen1.ChiServerOptions{BaseRouter: r, ErrorHandlerFunc: errHandlers.RequestErrorHandler})
 	return r
 }
 
@@ -66,6 +83,7 @@ var HTTPProviderSet = wire.NewSet(
 	petstorestub1.NewPetsHandlers,
 	providePetstoreHandlers,
 	provideErrorHandlers,
+	provideOperationResolver,
 	provideHTTPRouter,
 	wire.Struct(new(HTTPApp), "*"),
 )
