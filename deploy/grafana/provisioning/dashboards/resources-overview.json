@@ -858,8 +858,8 @@
     "list": [
       {
         "current": {
-          "text": "OpenAPI Mock Metrics",
-          "value": "OpenAPI Mock Metrics"
+          "text": "HTTP Mock Metrics",
+          "value": "HTTP Mock Metrics"
         },
         "includeAll": false,
         "label": "Data Source",
@@ -880,5 +880,5 @@
   "timezone": "browser",
   "title": "OpenAPI Mock - Resources Overview",
   "uid": "openapi-mock-resources-overview",
-  "version": 1
+  "version": 2
 }

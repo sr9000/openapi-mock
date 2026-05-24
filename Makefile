@@ -1,6 +1,12 @@
 .PHONY: all build run wire clean help openapi stub
 # Default target: show help when `make` is called without arguments
 .DEFAULT_GOAL := help
+
+DEV_COMPOSE_FILE := docker-compose.dev.yaml
+OBSERVABILITY_COMPOSE_FILE := docker-compose.observability.yaml
+COMPOSE_ENV_PATH := $(or $(wildcard .env),$(wildcard deploy/.env))
+COMPOSE_ENV_FILE := $(if $(COMPOSE_ENV_PATH),--env-file $(COMPOSE_ENV_PATH),)
+
 all: openapi stub wire build
 # Generate OpenAPI code
 openapi:
@@ -47,25 +53,25 @@ docker-dev:
 	@echo
 	@echo "===================="
 	@echo "Starting development environment..."
-	docker compose up --build
+	docker compose $(COMPOSE_ENV_FILE) -f $(DEV_COMPOSE_FILE) up --build
 # Docker Compose (Full Stack with Grafana)
 compose-up:
 	@echo
 	@echo "===================="
 	@echo "Building full stack images (plain progress)..."
-	docker compose --progress plain -f docker-compose-grafana.yaml build
+	docker compose $(COMPOSE_ENV_FILE) -f $(OBSERVABILITY_COMPOSE_FILE) --progress plain build
 	@echo "Starting full stack (OpenAPI Mock + Prometheus + Grafana)..."
-	docker compose -f docker-compose-grafana.yaml up -d
+	docker compose $(COMPOSE_ENV_FILE) -f $(OBSERVABILITY_COMPOSE_FILE) up -d
 compose-logs:
 	@echo
 	@echo "===================="
 	@echo "Following logs..."
-	docker compose -f docker-compose-grafana.yaml logs -f
+	docker compose $(COMPOSE_ENV_FILE) -f $(OBSERVABILITY_COMPOSE_FILE) logs -f
 compose-down:
 	@echo
 	@echo "===================="
 	@echo "Stopping full stack..."
-	docker compose -f docker-compose-grafana.yaml down
+	docker compose $(COMPOSE_ENV_FILE) -f $(OBSERVABILITY_COMPOSE_FILE) down
 compose-smoke:
 	@echo
 	@echo "===================="
@@ -81,8 +87,8 @@ help:
 	@echo "  run            - Run OpenAPI server"
 	@echo "  docker-build   - Build production Docker image"
 	@echo "  docker-run     - Run production Docker container"
-	@echo "  docker-dev     - Start development environment (watch mode)"
-	@echo "  compose-up     - Start full stack (Mock + Monitoring)"
+	@echo "  docker-dev     - Start development environment (watch mode via docker-compose.dev.yaml)"
+	@echo "  compose-up     - Start full stack (Mock + Monitoring via docker-compose.observability.yaml)"
 	@echo "  compose-logs   - Follow logs of full stack"
 	@echo "  compose-down   - Stop full stack"
 	@echo "  compose-smoke  - Run automated stack smoke validation"

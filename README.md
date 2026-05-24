@@ -193,7 +193,7 @@ curl -sS http://localhost:9100/metrics | grep http_requests_total
 В случае ошибок парсинга (например, неверный JSON) метрики будут содержать `kind="request_parse"`, но при этом сохранят правильную привязку к исходному `endpoint` и `operation`.
 
 ### Трассировка (OpenTelemetry / Tempo)
-При включении флага `TRACE_ENABLED=true` (по умолчанию включено в `docker-compose-grafana.yaml`) сервер автоматически извлекает `traceparent` из заголовков HTTP-запросов и отправляет спаны в OpenTelemetry Collector.
+При включении флага `TRACE_ENABLED=true` (по умолчанию включено в `docker-compose.observability.yaml`) сервер автоматически извлекает `traceparent` из заголовков HTTP-запросов и отправляет спаны в OpenTelemetry Collector.
 ```bash
 # Пример запроса с пробросом конкретного trace_id = 4bf92f3577b34da6a3ce929d0e0e4736
 curl -X POST http://localhost:8080/echo \
@@ -211,12 +211,20 @@ logger.Info().Msg("Запрос достиг бизнес-логики") // Бу
 ```
 
 ### Полный локальный стек (Grafana)
+Compose-файлы лежат в корне репозитория, а все конфиги observability — в `deploy/`:
+
+- `docker-compose.dev.yaml` — dev/watch-окружение.
+- `docker-compose.observability.yaml` — полный observability-стек.
+- `.env.example` — пример локальных переменных окружения.
+- `deploy/prometheus.yaml`, `deploy/otel.yaml`, `deploy/promtail.yaml`, `deploy/tempo.yaml` — плоские конфиги сервисов.
+- `deploy/grafana/` — образ Grafana и provisioning (datasources + dashboards).
+
 Вы можете поднять полный изолированный стек (Prometheus, Loki, Tempo, OTel Collector, Grafana), выполнив:
 ```bash
 make compose-up
 ```
 - **Grafana** будет доступна по адресу `http://localhost:3000`.
-- Заранее настроенные дашборды и источники данных покажут RPS, ошибки, распределение по OpenAPI-операциям и полные цепочки трейсов с привязанными логами.
+- Заранее настроенные дашборды и источники данных покажут RPS, latency, распределение по OpenAPI-операциям, ошибки/паники по `kind`, а трассы и логи будут доступны через Grafana Explore (Tempo + Loki).
 
 ## 🔧 Сервер управления (Management API)
 
@@ -270,7 +278,10 @@ open http://localhost:9000/doc
 
 ```bash
 # Запуск в режиме разработки с hot-reload
-docker compose up --build
+make docker-dev
+
+# Эквивалентная команда Docker Compose
+docker compose -f docker-compose.dev.yaml up --build
 ```
 
 ### Продакшен
@@ -287,6 +298,11 @@ make docker-run
 ```bash
 # Запуск с Prometheus + Grafana + Tempo + Loki + OTel Collector
 make compose-up
+
+# Явный compose-файл полного observability-стека
+docker compose -f docker-compose.observability.yaml --progress plain build
+docker compose -f docker-compose.observability.yaml up -d
+
 # Автоматическая smoke-проверка всего observability стека
 make compose-smoke
 # Просмотр логов
@@ -297,3 +313,6 @@ make compose-down
 
 > Примечание по Docker Compose: для снижения риска известных сбоев CLI при `up --build` репозиторий использует двухшаговый запуск (`build` с plain progress, затем `up -d`).
 > Это внешняя проблема плагина Compose, а не ошибка Go-кода этого проекта. Локально проверялась версия: `Docker Compose v2.29.7-desktop.1`.
+>
+> Рекомендуемое место для локальных overrides — корневой `.env` (например `cp .env.example .env`).
+> `make docker-dev` и `make compose-*` автоматически передадут его в Docker Compose. Для обратной совместимости также поддерживается `deploy/.env`.
