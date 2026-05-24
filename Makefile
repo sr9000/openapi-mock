@@ -67,7 +67,7 @@ compose-down:
 # Show help
 help:
 	@echo "Available targets:"
-	@echo "  openapi        - Generate OpenAPI code from specs"
+	@echo "  openapi        - Generate OpenAPI code from api"
 	@echo "  stub           - Update OpenAPI stubs"
 	@echo "  wire           - Update wire dependency injection"
 	@echo "  build          - Build server binary"

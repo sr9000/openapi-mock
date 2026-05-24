@@ -196,6 +196,64 @@ paths:
 	}
 }
 
+func TestDiscoverOpenAPISpecs_SupportsVersionedAndNonVersionedInParallel(t *testing.T) {
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp := t.TempDir()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	oldSpecsDir := specsDir
+	specsDir = "api"
+	defer func() { specsDir = oldSpecsDir }()
+
+	specBody := `openapi: 3.0.3
+info:
+  title: test
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: ok
+`
+
+	paths := []string{
+		filepath.Join("api", "petstore", "openapi.yaml"),
+		filepath.Join("api", "petstore", "v3", "openapi.yaml"),
+	}
+	for _, p := range paths {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(specBody), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	specs, err := discoverOpenAPISpecs()
+	if err != nil {
+		t.Fatalf("discoverOpenAPISpecs() error = %v", err)
+	}
+	if len(specs) != 2 {
+		t.Fatalf("discoverOpenAPISpecs() len = %d, want 2", len(specs))
+	}
+
+	rel := map[string]bool{}
+	for _, spec := range specs {
+		rel[spec.RelPath] = true
+	}
+	if !rel["petstore"] || !rel["petstore/v3"] {
+		t.Fatalf("expected rel paths petstore and petstore/v3, got: %+v", rel)
+	}
+}
+
 func TestResolveOperationMethodName_UsesStrictNameMatch(t *testing.T) {
 	spec := &openapiSpec{StrictNames: map[string]bool{"ListPetsV2": true}}
 	op := opInfo{OperationID: "list_pets_v2"}
