@@ -1,6 +1,7 @@
 package main
 
 import (
+	"embed"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,22 +10,20 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+//go:embed test_srcs/*/*.go
+var testSources embed.FS
+
+func mustReadTestSource(t *testing.T, relPath string) []byte {
+	t.Helper()
+	b, err := testSources.ReadFile(relPath)
+	if err != nil {
+		t.Fatalf("failed to read embedded test source %q: %v", relPath, err)
+	}
+	return b
+}
+
 func TestParseExistingMethods_ASTHandlesReceiverRenameAndMultiline(t *testing.T) {
-	src := []byte(`package petstore
-
-type PetsHandlers struct{}
-
-func (handler *PetsHandlers) ListPets(
-	ctx context.Context,
-	request any,
-) (any, error) {
-	return nil, nil
-}
-
-func (h PetsHandlers) GetPet(ctx context.Context, request any) (any, error) {
-	return nil, nil
-}
-`)
+	src := mustReadTestSource(t, "test_srcs/parse_existing_methods/pets_handlers.go")
 
 	methods := parseExistingMethods(src, "PetsHandlers")
 
