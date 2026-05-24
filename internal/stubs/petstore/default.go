@@ -17,9 +17,13 @@ func NewDefaultHandlers(enableLogging bool) *DefaultHandlers {
 	return &DefaultHandlers{EnableLogging: enableLogging}
 }
 
+func (h *DefaultHandlers) logger(ctx context.Context) zerolog.Logger {
+	return observability.Logger(ctx, zerolog.Nop())
+}
+
 func (h *DefaultHandlers) HealthCheck(ctx context.Context, request gen.HealthCheckRequestObject) (gen.HealthCheckResponseObject, error) {
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
+		logger := h.logger(ctx)
 		logger.Info().Str("handler", "DefaultHandlers").Msg("HealthCheck")
 	}
 

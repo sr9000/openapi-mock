@@ -54,8 +54,10 @@ func generateOpenAPIStubFile(outDir string, spec *openapiSpec, tag string, ops [
 	var buf bytes.Buffer
 
 	imports := map[string]string{
-		"context":       "",
-		spec.GenPkgPath: "gen",
+		"context":                        "",
+		"github.com/rs/zerolog":          "",
+		spec.GenPkgPath:                  "gen",
+		"openapi-mock/pkg/observability": "",
 	}
 
 	fmt.Fprintf(&buf, "package %s\n\n", spec.PkgName)
@@ -70,7 +72,9 @@ func generateOpenAPIStubFile(outDir string, spec *openapiSpec, tag string, ops [
 	// Constructor
 	fmt.Fprintf(&buf, "func %s(enableLogging bool) *%s {\n", getNewHandlerFuncName(tag), structName)
 	fmt.Fprintf(&buf, "\treturn &%s{EnableLogging: enableLogging}\n", structName)
-	fmt.Fprintf(&buf, "}\n")
+	fmt.Fprintf(&buf, "}\n\n")
+
+	buf.WriteString(generateOpenAPILogHelper(structName))
 
 	// Methods for each operation
 	for _, op := range ops {
@@ -106,12 +110,23 @@ func generateOpenAPIMethod(structName string, spec *openapiSpec, op opInfo) stri
 	respType := fmt.Sprintf("gen.%sResponseObject", methodName)
 
 	fmt.Fprintf(&buf, "func (h *%s) %s(ctx context.Context, request %s) (%s, error) {\n", structName, methodName, reqType, respType)
-	fmt.Fprintf(&buf, "\t_ = h\n")
+	fmt.Fprintf(&buf, "\tif h.EnableLogging {\n")
+	fmt.Fprintf(&buf, "\t\tlogger := h.logger(ctx)\n")
+	fmt.Fprintf(&buf, "\t\tlogger.Info().Str(\"handler\", %q).Msg(%q)\n", structName, methodName)
+	fmt.Fprintf(&buf, "\t}\n")
 
 	// Avoid unused warning for request in basic stubs
 	fmt.Fprintf(&buf, "\t_ = request\n\n")
 
 	buf.WriteString(generateOpenAPIMethodBody(spec, op, methodName))
+	fmt.Fprintf(&buf, "}\n")
+	return buf.String()
+}
+
+func generateOpenAPILogHelper(structName string) string {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "func (h *%s) logger(ctx context.Context) zerolog.Logger {\n", structName)
+	fmt.Fprintf(&buf, "\treturn observability.Logger(ctx, zerolog.Nop())\n")
 	fmt.Fprintf(&buf, "}\n")
 	return buf.String()
 }
@@ -166,9 +181,14 @@ func updateOpenAPIStubFile(path string, spec *openapiSpec, tag string, ops []opI
 
 	// Parse to find existing methods
 	existingMethods := parseExistingMethods(existingSrc, structName)
+	helperName := fmt.Sprintf("func (h *%s) logger(ctx context.Context) zerolog.Logger", structName)
+	helperMissing := !strings.Contains(string(existingSrc), helperName)
 
 	// Find missing methods
 	var newMethods []string
+	if helperMissing {
+		newMethods = append(newMethods, generateOpenAPILogHelper(structName))
+	}
 	for _, op := range ops {
 		methodName := resolveOperationMethodName(spec, op)
 		if _, exists := existingMethods[methodName]; !exists {
