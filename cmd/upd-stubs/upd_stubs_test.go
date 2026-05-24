@@ -227,3 +227,41 @@ func TestAnnotateOrphanedMethods(t *testing.T) {
 		t.Fatalf("expected stable output across repeated annotation")
 	}
 }
+
+func TestUpdateOpenAPIStubFile_DoesNotDuplicateMultilineRenamedReceiverMethod(t *testing.T) {
+	tmp := t.TempDir()
+	stubPath := filepath.Join(tmp, "pets.go")
+
+	existing := mustReadTestSource(t, "test_srcs/update_existing_methods/pets_handlers.go")
+	if err := os.WriteFile(stubPath, existing, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	spec := &openapiSpec{
+		PkgName:     "petstore",
+		GenPkgPath:  "openapi-mock/internal/generated/petstore",
+		StrictNames: map[string]bool{"ListPets": true, "CreatePet": true},
+	}
+	responses := &openapi3.Responses{}
+	ops := []opInfo{
+		{OperationID: "ListPets", Operation: &openapi3.Operation{Responses: responses}},
+		{OperationID: "CreatePet", Operation: &openapi3.Operation{Responses: responses}},
+	}
+
+	if err := updateOpenAPIStubFile(stubPath, spec, "pets", ops); err != nil {
+		t.Fatalf("updateOpenAPIStubFile() error = %v", err)
+	}
+
+	updated, err := os.ReadFile(stubPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(updated)
+
+	if strings.Count(content, "ListPets(") != 1 {
+		t.Fatalf("expected exactly one ListPets method after update, got:\n%s", content)
+	}
+	if !strings.Contains(content, "func (h *PetsHandlers) CreatePet(") {
+		t.Fatalf("expected missing CreatePet method to be appended, got:\n%s", content)
+	}
+}
