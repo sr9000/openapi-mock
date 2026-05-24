@@ -3,11 +3,12 @@ package petstore
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
+	"github.com/rs/zerolog"
+
 	gen "openapi-mock/internal/generated/petstore"
-	"openapi-mock/pkg/ctxkeys"
+	"openapi-mock/pkg/observability"
 )
 
 type PetsHandlers struct {
@@ -20,8 +21,8 @@ func NewPetsHandlers(enableLogging bool) *PetsHandlers {
 
 func (h *PetsHandlers) ListPets(ctx context.Context, request gen.ListPetsRequestObject) (gen.ListPetsResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] ListPets", reqID)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "PetsHandlers").Msg("ListPets")
 	}
 
 	// Small deterministic dataset
@@ -35,8 +36,8 @@ func (h *PetsHandlers) ListPets(ctx context.Context, request gen.ListPetsRequest
 
 func (h *PetsHandlers) CreatePet(ctx context.Context, request gen.CreatePetRequestObject) (gen.CreatePetResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] CreatePet", reqID)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "PetsHandlers").Msg("CreatePet")
 	}
 
 	if request.Body != nil {
@@ -54,8 +55,8 @@ func (h *PetsHandlers) CreatePet(ctx context.Context, request gen.CreatePetReque
 
 func (h *PetsHandlers) DeletePet(ctx context.Context, request gen.DeletePetRequestObject) (gen.DeletePetResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] DeletePet petId=%d", reqID, request.PetId)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "PetsHandlers").Int64("pet_id", request.PetId).Msg("DeletePet")
 	}
 
 	switch {
@@ -70,8 +71,8 @@ func (h *PetsHandlers) DeletePet(ctx context.Context, request gen.DeletePetReque
 
 func (h *PetsHandlers) GetPetById(ctx context.Context, request gen.GetPetByIdRequestObject) (gen.GetPetByIdResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [PetsHandlers] GetPetById petId=%d", reqID, request.PetId)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "PetsHandlers").Int64("pet_id", request.PetId).Msg("GetPetById")
 	}
 
 	// Drive errors/panics by ID to keep client simple

@@ -2,9 +2,11 @@ package petstore
 
 import (
 	"context"
-	"log"
+
+	"github.com/rs/zerolog"
+
 	gen "openapi-mock/internal/generated/petstore"
-	"openapi-mock/pkg/ctxkeys"
+	"openapi-mock/pkg/observability"
 )
 
 type DefaultHandlers struct {
@@ -17,8 +19,8 @@ func NewDefaultHandlers(enableLogging bool) *DefaultHandlers {
 
 func (h *DefaultHandlers) HealthCheck(ctx context.Context, request gen.HealthCheckRequestObject) (gen.HealthCheckResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [DefaultHandlers] HealthCheck", reqID)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "DefaultHandlers").Msg("HealthCheck")
 	}
 
 	_ = request

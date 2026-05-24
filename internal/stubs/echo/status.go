@@ -2,9 +2,11 @@ package echo
 
 import (
 	"context"
-	"log"
+
+	"github.com/rs/zerolog"
+
 	gen "openapi-mock/internal/generated/echo"
-	"openapi-mock/pkg/ctxkeys"
+	"openapi-mock/pkg/observability"
 )
 
 type StatusHandlers struct {
@@ -17,8 +19,8 @@ func NewStatusHandlers(enableLogging bool) *StatusHandlers {
 
 func (h *StatusHandlers) IsFine(ctx context.Context, request gen.IsFineRequestObject) (gen.IsFineResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [StatusHandlers] IsFine", reqID)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "StatusHandlers").Msg("IsFine")
 	}
 
 	_ = request
@@ -28,8 +30,8 @@ func (h *StatusHandlers) IsFine(ctx context.Context, request gen.IsFineRequestOb
 
 func (h *StatusHandlers) GetStatus(ctx context.Context, request gen.GetStatusRequestObject) (gen.GetStatusResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [StatusHandlers] GetStatus", reqID)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "StatusHandlers").Msg("GetStatus")
 	}
 
 	_ = request

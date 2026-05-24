@@ -2,9 +2,11 @@ package echo
 
 import (
 	"context"
-	"log"
+
+	"github.com/rs/zerolog"
+
 	gen "openapi-mock/internal/generated/echo"
-	"openapi-mock/pkg/ctxkeys"
+	"openapi-mock/pkg/observability"
 )
 
 type EchoHandlers struct {
@@ -17,8 +19,8 @@ func NewEchoHandlers(enableLogging bool) *EchoHandlers {
 
 func (h *EchoHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) (gen.EchoResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [EchoHandlers] Echo", reqID)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "EchoHandlers").Msg("Echo")
 	}
 
 	_ = request
@@ -28,8 +30,8 @@ func (h *EchoHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) 
 
 func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersRequestObject) (gen.EchoHeadersResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [EchoHandlers] EchoHeaders", reqID)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "EchoHandlers").Msg("EchoHeaders")
 	}
 
 	_ = request
@@ -39,8 +41,8 @@ func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersR
 
 func (h *EchoHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequestObject) (gen.EchoPathResponseObject, error) {
 	if h.EnableLogging {
-		reqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)
-		log.Printf("[req_id=%s] [EchoHandlers] EchoPath", reqID)
+		logger := observability.Logger(ctx, zerolog.Nop())
+		logger.Info().Str("handler", "EchoHandlers").Msg("EchoPath")
 	}
 
 	_ = request
