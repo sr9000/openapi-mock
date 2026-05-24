@@ -1,26 +1,28 @@
+name: openapi-mock-dev
+
 services:
   openapi-mock:
     build:
-      context: .
+      context: ../../..
       target: dev  # Targeted specifically for the 'dev' stage
     # Run as host user to keep correct file permissions on mounted volumes.
     # On Linux: uses actual UID/GID from environment.
     # On macOS: Docker Desktop handles permissions, UID/GID default to 0 (root) which works fine.
     user: "${UID:-0}:${GID:-0}"
     volumes:
-      # Mount the current directory to /app in the container.
+      # Mount the repository root to /app in the container.
       # This enables bi-directional sync:
       # 1. You edit files on host -> Container sees them -> Air rebuilds.
       # 2. Container generates files -> Host sees them -> IDE works.
-      - .:/app
+      - ../../..:/app
       # Mount go module cache to prevent re-downloading dependencies
       - gomod-cache:/go/pkg/mod
     ports:
-      - "8080:8080"
-      - "9000:9000"
-      - "9100:9100"
+      - "${HTTP_PORT:-8080}:8080"
+      - "${MGMT_PORT:-9000}:9000"
+      - "${METRICS_PORT:-9100}:9100"
     environment:
       - HOST=0.0.0.0
-      - HTTP_LOGGING=true
+      - HTTP_LOGGING=${HTTP_LOGGING:-true}
 volumes:
   gomod-cache:

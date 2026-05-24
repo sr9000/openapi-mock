@@ -63,13 +63,13 @@
         "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
         "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" }
       },
-      "title": "RPS by Endpoint",
+      "title": "RPS by Operation",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(http_requests_total[$__rate_interval])) by (method, endpoint)",
-          "legendFormat": "{{method}} {{endpoint}}",
+          "expr": "sum(rate(http_requests_total[$__rate_interval])) by (method, endpoint, operation)",
+          "legendFormat": "{{method}} {{endpoint}} · {{operation}}",
           "refId": "A"
         }
       ]
@@ -121,13 +121,13 @@
         "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
         "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" }
       },
-      "title": "RPS by Endpoint and Status",
+      "title": "RPS by Operation and Status",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(http_requests_total[$__rate_interval])) by (method, endpoint, status)",
-          "legendFormat": "{{method}} {{endpoint}} [{{status}}]",
+          "expr": "sum(rate(http_requests_total[$__rate_interval])) by (method, endpoint, operation, status)",
+          "legendFormat": "{{method}} {{endpoint}} · {{operation}} [{{status}}]",
           "refId": "A"
         }
       ]
@@ -174,13 +174,13 @@
         "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
         "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" }
       },
-      "title": "Latency by Endpoint (p95)",
+      "title": "Latency by Operation (p95)",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[$__rate_interval])) by (le, method, endpoint))",
-          "legendFormat": "{{method}} {{endpoint}}",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[$__rate_interval])) by (le, method, endpoint, operation))",
+          "legendFormat": "{{method}} {{endpoint}} · {{operation}}",
           "refId": "A"
         }
       ]
@@ -232,13 +232,13 @@
         "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
         "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" }
       },
-      "title": "Latency by Endpoint and Status (p95)",
+      "title": "Latency by Operation and Status (p95)",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[$__rate_interval])) by (le, method, endpoint, status))",
-          "legendFormat": "{{method}} {{endpoint}} [{{status}}]",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[$__rate_interval])) by (le, method, endpoint, operation, status))",
+          "legendFormat": "{{method}} {{endpoint}} · {{operation}} [{{status}}]",
           "refId": "A"
         }
       ]
@@ -285,13 +285,13 @@
         "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
         "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" }
       },
-      "title": "Errors RPS by Endpoint and Message",
+      "title": "Errors RPS by Operation and Kind",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(http_errors_total[$__rate_interval])) by (method, endpoint, message)",
-          "legendFormat": "{{method}} {{endpoint}} - {{message}}",
+          "expr": "sum(rate(http_errors_total[$__rate_interval])) by (method, endpoint, operation, status, kind)",
+          "legendFormat": "{{method}} {{endpoint}} · {{operation}} [{{status}} / {{kind}}]",
           "refId": "A"
         }
       ]
@@ -338,13 +338,13 @@
         "legend": { "calcs": ["lastNotNull", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
         "tooltip": { "hideZeros": false, "mode": "multi", "sort": "desc" }
       },
-      "title": "Panics RPS by Endpoint and Message",
+      "title": "Panics RPS by Operation and Kind",
       "type": "timeseries",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "expr": "sum(rate(http_panics_total[$__rate_interval])) by (method, endpoint, message)",
-          "legendFormat": "{{method}} {{endpoint}} - {{message}}",
+          "expr": "sum(rate(http_panics_total[$__rate_interval])) by (method, endpoint, operation, status, kind)",
+          "legendFormat": "{{method}} {{endpoint}} · {{operation}} [{{status}} / {{kind}}]",
           "refId": "A"
         }
       ]
@@ -353,11 +353,11 @@
   "preload": false,
   "refresh": "5s",
   "schemaVersion": 42,
-  "tags": ["openapi-mock", "http", "methods"],
+  "tags": ["openapi-mock", "http", "operations"],
   "templating": {
     "list": [
       {
-        "current": { "text": "OpenAPI Mock Metrics", "value": "OpenAPI Mock Metrics" },
+        "current": { "text": "HTTP Mock Metrics", "value": "HTTP Mock Metrics" },
         "includeAll": false,
         "label": "Data Source",
         "name": "datasource",
@@ -372,7 +372,7 @@
   "time": { "from": "now-15m", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "OpenAPI Mock - HTTP Endpoints Overview",
+  "title": "OpenAPI Mock - HTTP Operations Overview",
   "uid": "openapi-mock-endpoints-overview",
-  "version": 1
+  "version": 2
 }

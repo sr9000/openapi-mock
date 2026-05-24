@@ -1,10 +1,11 @@
+name: openapi-mock-observability
+
 services:
   openapi-mock:
     build:
-      context: .
+      context: ../../..
       dockerfile: Dockerfile
       target: production
-    container_name: openapi-mock-app
     user: "0:0"
     ports:
       # HTTP server port
@@ -29,21 +30,25 @@ services:
     volumes:
       - app_logs:/var/log/openapi-mock
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/status"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
   prometheus:
     image: prom/prometheus:v2.53.0
-    container_name: openapi-mock-prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yaml'
       - '--storage.tsdb.path=/prometheus'
       - '--web.enable-lifecycle'
     volumes:
-      - ./prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
       - prometheus_data:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
       openapi-mock:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
@@ -52,7 +57,6 @@ services:
       retries: 10
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.102.1
-    container_name: openapi-mock-otel-collector
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
       - ./otel/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
@@ -71,7 +75,6 @@ services:
       retries: 10
   tempo:
     image: grafana/tempo:2.4.1
-    container_name: openapi-mock-tempo
     command: ["-config.file=/etc/tempo.yaml"]
     volumes:
       - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
@@ -86,7 +89,6 @@ services:
       retries: 10
   loki:
     image: grafana/loki:2.9.8
-    container_name: openapi-mock-loki
     command: ["-config.file=/etc/loki/local-config.yaml"]
     volumes:
       - loki_data:/loki
@@ -100,7 +102,6 @@ services:
       retries: 10
   promtail:
     image: grafana/promtail:2.9.8
-    container_name: openapi-mock-promtail
     command: ["-config.file=/etc/promtail/config.yaml"]
     volumes:
       - ./promtail/promtail.yaml:/etc/promtail/config.yaml:ro
@@ -109,7 +110,7 @@ services:
       loki:
         condition: service_healthy
       openapi-mock:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9080/ready"]
@@ -120,7 +121,6 @@ services:
     build:
       context: ./grafana
       dockerfile: Dockerfile
-    container_name: openapi-mock-grafana
     environment:
       # Note: This refers to the internal service port (9090), which doesn't change
       - PROMETHEUS_URL=http://prometheus:9090
