@@ -191,7 +191,7 @@ func TestManagementRouteMethodsAndDocs(t *testing.T) {
 }
 
 func TestMockDocsRoutes(t *testing.T) {
-	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000", MockDocs: []MockDoc{
+	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000", MockServerURL: "http://127.0.0.1:8080", MockDocs: []MockDoc{
 		{APIName: "petstore", Title: "Petstore", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Petstore"}}`), nil }},
 		{APIName: "echo", APIVersion: "v2", Title: "Echo v2", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Echo v2"}}`), nil }},
 		{APIName: "echo", APIVersion: "v3", Title: "Echo v3", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Echo v3"}}`), nil }},
@@ -224,6 +224,9 @@ func TestMockDocsRoutes(t *testing.T) {
 	h.ServeHTTP(jsonRes, jsonReq)
 	if jsonRes.Code != http.StatusOK || !strings.Contains(jsonRes.Body.String(), "Petstore") {
 		t.Fatalf("unexpected openapi response: status=%d body=%q", jsonRes.Code, jsonRes.Body.String())
+	}
+	if !strings.Contains(jsonRes.Body.String(), `"servers":[{"url":"http://127.0.0.1:8080"}]`) {
+		t.Fatalf("expected openapi servers to point to mock endpoint, got: %q", jsonRes.Body.String())
 	}
 
 	versionReq := httptest.NewRequest(http.MethodGet, "/docs/echo/v3/openapi.json", nil)

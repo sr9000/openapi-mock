@@ -59,6 +59,7 @@ type Server struct {
 	recorder      *recorder.Recorder
 	contextValues *mm.Store
 	mockDocs      *mockDocsIndex
+	mockServerURL string
 	reset         func(context.Context) error
 	server        *http.Server
 	port          string
@@ -68,6 +69,7 @@ type Options struct {
 	Recorder      *recorder.Recorder
 	ContextValues *mm.Store
 	MockDocs      []MockDoc
+	MockServerURL string
 	Port          string
 	Reset         func(context.Context) error
 }
@@ -88,6 +90,7 @@ func New(opts Options) *Server {
 		recorder:      opts.Recorder,
 		contextValues: opts.ContextValues,
 		mockDocs:      newMockDocsIndex(opts.MockDocs),
+		mockServerURL: opts.MockServerURL,
 		reset:         opts.Reset,
 		port:          opts.Port,
 	}
@@ -390,8 +393,25 @@ func (s *Server) writeMockOpenAPI(w http.ResponseWriter, doc MockDoc) {
 		writeError(w, http.StatusInternalServerError, "failed to render openapi")
 		return
 	}
+	patched, err := injectMockServerURL(data, s.mockServerURL)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to patch openapi servers")
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write(data)
+	_, _ = w.Write(patched)
+}
+
+func injectMockServerURL(raw []byte, serverURL string) ([]byte, error) {
+	if strings.TrimSpace(serverURL) == "" {
+		return raw, nil
+	}
+	var spec map[string]any
+	if err := json.Unmarshal(raw, &spec); err != nil {
+		return nil, err
+	}
+	spec["servers"] = []map[string]string{{"url": serverURL}}
+	return json.Marshal(spec)
 }
 
 // handleOpenAPI returns the OpenAPI specification JSON

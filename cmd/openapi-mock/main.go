@@ -194,10 +194,17 @@ func runServer(cfg Config) error {
 	}
 
 	if cfg.EnableMgmt {
+		mockHost := cfg.Host
+		if mockHost == "" || mockHost == "0.0.0.0" || mockHost == "::" {
+			mockHost = "localhost"
+		}
+		mockServerURL := "http://" + net.JoinHostPort(mockHost, cfg.Port)
+
 		mgmtServer = mgmt.New(mgmt.Options{
 			Recorder:      rec,
 			ContextValues: contextValues,
 			MockDocs:      app.MockDocs(),
+			MockServerURL: mockServerURL,
 			Port:          cfg.MgmtPort,
 			Reset:         resetCallback(rt.Reset, rec, contextValues),
 		})
