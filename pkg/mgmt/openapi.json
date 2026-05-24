@@ -1,181 +1,54 @@
 {
   "openapi": "3.0.3",
-  "info": {
-    "title": "OpenAPI Mock Management API",
-    "description": "Management API for the OpenAPI mock server used in e2e testing. Provides endpoints to retrieve and clear recorded HTTP/OpenAPI calls.",
-    "version": "1.0.0"
-  },
-  "servers": [
-    {
-      "url": "http://localhost:9000",
-      "description": "Default management server"
-    }
-  ],
+  "info": {"title": "OpenAPI Mock Management API", "version": "1.0.0"},
   "paths": {
     "/logs": {
-      "get": {
-        "summary": "Get all recorded HTTP/OpenAPI calls",
-        "description": "Returns all recorded HTTP/OpenAPI calls as JSON array, including request/response bodies, timestamps, errors, and panics.",
-        "operationId": "getLogs",
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved logs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CallRecord"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Failed to serialize logs"
-          }
-        }
-      },
-      "delete": {
-        "summary": "Clear all recorded HTTP/OpenAPI calls",
-        "description": "Removes all recorded HTTP/OpenAPI calls from memory.",
-        "operationId": "clearLogs",
-        "responses": {
-          "200": {
-            "description": "Successfully cleared logs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "example": "cleared"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+      "get": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/CallRecord"}}}}}}},
+      "delete": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StatusResponse"}}}}}}
     },
     "/logs/{request_id}": {
       "get": {
-        "summary": "Get recorded HTTP/OpenAPI calls by request id",
-        "description": "Returns only recorded calls that match the provided request id.",
-        "operationId": "getLogsByRequestID",
-        "parameters": [
-          {
-            "name": "request_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Request identifier to filter records"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved filtered logs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CallRecord"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Failed to serialize logs"
-          }
-        }
+        "parameters": [{"name": "request_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/CallRecord"}}}}}}
       }
     },
-    "/doc": {
-      "get": {
-        "summary": "Interactive Swagger UI",
-        "description": "Returns an interactive Swagger UI page for exploring and testing the API.",
-        "operationId": "getDoc",
-        "responses": {
-          "200": {
-            "description": "Swagger UI HTML page",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
+    "/context-values": {
+      "get": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValuesStore"}}}}}},
+      "put": {"requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValuesStore"}}}}, "responses": {"200": {"description": "OK"}}},
+      "patch": {"requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValuesStore"}}}}, "responses": {"200": {"description": "OK"}}},
+      "delete": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StatusResponse"}}}}}}
+    },
+    "/context-values/{request_id}": {
+      "parameters": [{"name": "request_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValueObject"}}}}}},
+      "put": {"requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValueObject"}}}}, "responses": {"200": {"description": "OK"}}},
+      "patch": {"requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValueObject"}}}}, "responses": {"200": {"description": "OK"}}},
+      "delete": {
+        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object", "properties": {"keys": {"type": "array", "items": {"type": "string"}}}}}}},
+        "responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StatusResponse"}}}}}
       }
     },
-    "/openapi.json": {
-      "get": {
-        "summary": "Get OpenAPI specification",
-        "description": "Returns this OpenAPI specification as JSON.",
-        "operationId": "getOpenAPI",
-        "responses": {
-          "200": {
-            "description": "OpenAPI specification",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    "/doc": {"get": {"responses": {"200": {"description": "OK"}}}},
+    "/openapi.json": {"get": {"responses": {"200": {"description": "OK"}}}}
   },
   "components": {
     "schemas": {
       "CallRecord": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "description": "Unique identifier for the request"
-          },
-          "method": {
-            "type": "string",
-            "description": "Request method and resolved route template (for example, GET /pets/{petId})"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Timestamp when the request was received"
-          },
-          "request": {
-            "type": "object",
-            "description": "Full request body"
-          },
-          "response": {
-            "type": "object",
-            "description": "Full response body (if successful)"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message (if the call failed)"
-          },
-          "panic": {
-            "type": "string",
-            "description": "Panic message (if a panic occurred)"
-          },
-          "duration_ms": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Request duration in milliseconds"
-          }
+          "request_id": {"type": "string"},
+          "method": {"type": "string"},
+          "timestamp": {"type": "string", "format": "date-time"},
+          "request": {},
+          "response": {},
+          "error": {"type": "string"},
+          "panic": {"type": "string"},
+          "duration_ms": {"type": "integer", "format": "int64"}
         }
-      }
+      },
+      "ContextValueObject": {"type": "object", "additionalProperties": true},
+      "ContextValuesStore": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/ContextValueObject"}},
+      "StatusResponse": {"type": "object", "properties": {"status": {"type": "string"}}}
     }
   }
 }

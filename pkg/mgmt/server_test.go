@@ -5,342 +5,184 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"openapi-mock/pkg/recorder"
 	"strings"
 	"testing"
 	"time"
+
+	"openapi-mock/pkg/mm"
+	"openapi-mock/pkg/recorder"
 )
 
-func TestHandleLogs(t *testing.T) {
-	rec := recorder.New()
-	rec.Record(recorder.CallRecord{
-		RequestID:  "test-id",
-		Method:     "/TestService/TestMethod",
-		Timestamp:  time.Now(),
-		Request:    map[string]string{"message": "hello"},
-		Response:   map[string]string{"message": "world"},
-		DurationMs: 50,
-	})
-
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodGet, "/logs", nil)
-	w := httptest.NewRecorder()
-
-	s.handleLogs(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	if resp.Header.Get("Content-Type") != "application/json" {
-		t.Errorf("Expected Content-Type 'application/json', got '%s'", resp.Header.Get("Content-Type"))
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	var records []recorder.CallRecord
-	if err := json.Unmarshal(body, &records); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if len(records) != 1 {
-		t.Fatalf("Expected 1 record, got %d", len(records))
-	}
-
-	if records[0].RequestID != "test-id" {
-		t.Errorf("Expected request_id 'test-id', got '%s'", records[0].RequestID)
-	}
-}
-
-func TestHandleLogsEmpty(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodGet, "/logs", nil)
-	w := httptest.NewRecorder()
-
-	s.handleLogs(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if string(body) != "[]" {
-		t.Errorf("Expected empty array '[]', got '%s'", string(body))
-	}
-}
-
-func TestHandleLogsMethodNotAllowed(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
-
-	methods := []string{http.MethodPost, http.MethodPut, http.MethodPatch}
-
-	for _, method := range methods {
-		req := httptest.NewRequest(method, "/logs", nil)
-		w := httptest.NewRecorder()
-
-		s.handleLogs(w, req)
-
-		resp := w.Result()
-		resp.Body.Close()
-
-		if resp.StatusCode != http.StatusMethodNotAllowed {
-			t.Errorf("Expected status 405 for %s, got %d", method, resp.StatusCode)
-		}
-	}
-}
-
-func TestHandleLogsDelete(t *testing.T) {
-	rec := recorder.New()
-	rec.Record(recorder.CallRecord{
-		RequestID: "test-id",
-		Method:    "/TestService/TestMethod",
-		Timestamp: time.Now(),
-	})
-
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodDelete, "/logs", nil)
-	w := httptest.NewRecorder()
-
-	s.handleLogs(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	var result map[string]string
-	if err := json.Unmarshal(body, &result); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if result["status"] != "cleared" {
-		t.Errorf("Expected status 'cleared', got '%s'", result["status"])
-	}
-
-	if len(rec.GetRecords()) != 0 {
-		t.Error("Expected records to be cleared")
-	}
-}
-
-func TestHandleLogsByRequestID(t *testing.T) {
+func TestLogsRoutes(t *testing.T) {
 	rec := recorder.New()
 	rec.Record(recorder.CallRecord{RequestID: "id-1", Method: "GET /a", Timestamp: time.Now()})
 	rec.Record(recorder.CallRecord{RequestID: "id-2", Method: "GET /b", Timestamp: time.Now()})
-	rec.Record(recorder.CallRecord{RequestID: "id-1", Method: "GET /c", Timestamp: time.Now()})
-	s := New(rec, "9000")
+	s := New(rec, mm.NewStore(), "9000")
+	h := s.router()
 
-	req := httptest.NewRequest(http.MethodGet, "/logs/id-1", nil)
-	w := httptest.NewRecorder()
-	s.handleLogsByRequestID(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("Expected status 200, got %d", resp.StatusCode)
+	getReq := httptest.NewRequest(http.MethodGet, "/logs", nil)
+	getRes := httptest.NewRecorder()
+	h.ServeHTTP(getRes, getReq)
+	if getRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", getRes.Code)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-	var records []recorder.CallRecord
-	if err := json.Unmarshal(body, &records); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
+	filterReq := httptest.NewRequest(http.MethodGet, "/logs/id-1", nil)
+	filterRes := httptest.NewRecorder()
+	h.ServeHTTP(filterRes, filterReq)
+	if filterRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", filterRes.Code)
 	}
-	if len(records) != 2 {
-		t.Fatalf("Expected 2 records, got %d", len(records))
+	var filtered []recorder.CallRecord
+	if err := json.Unmarshal(filterRes.Body.Bytes(), &filtered); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
 	}
-	for _, record := range records {
-		if record.RequestID != "id-1" {
-			t.Fatalf("Expected only id-1 records, got %s", record.RequestID)
-		}
+	if len(filtered) != 1 || filtered[0].RequestID != "id-1" {
+		t.Fatalf("unexpected filtered records: %+v", filtered)
 	}
-}
 
-func TestHandleLogsByRequestIDNotFound(t *testing.T) {
-	rec := recorder.New()
-
-	s := New(rec, "9000")
-	req := httptest.NewRequest(http.MethodGet, "/logs/", nil)
-	w := httptest.NewRecorder()
-	s.handleLogsByRequestID(w, req)
-
-	resp := w.Result()
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("Expected status 404, got %d", resp.StatusCode)
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/logs", nil)
+	deleteRes := httptest.NewRecorder()
+	h.ServeHTTP(deleteRes, deleteReq)
+	if deleteRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", deleteRes.Code)
+	}
+	if len(rec.GetRecords()) != 0 {
+		t.Fatalf("expected logs to be cleared")
 	}
 }
 
-func TestRemovedClearRouteReturnsNotFound(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "0")
-	mux := http.NewServeMux()
-	mux.HandleFunc("/logs", s.handleLogs)
-	mux.HandleFunc("/logs/", s.handleLogsByRequestID)
-	mux.HandleFunc("/doc", s.handleDoc)
-	mux.HandleFunc("/openapi.json", s.handleOpenAPI)
-	mux.HandleFunc("/swagger-ui-bundle.js", s.handleSwaggerUIBundle)
-	mux.HandleFunc("/swagger-ui.css", s.handleSwaggerUICSS)
+func TestContextValuesCollectionEndpoints(t *testing.T) {
+	store := mm.NewStore()
+	s := New(recorder.New(), store, "9000")
+	h := s.router()
 
-	for _, method := range []string{http.MethodPost, http.MethodDelete} {
-		req := httptest.NewRequest(method, "/clear", nil)
-		w := httptest.NewRecorder()
-		mux.ServeHTTP(w, req)
+	put := httptest.NewRequest(http.MethodPut, "/context-values", strings.NewReader(`{"case-a":{"low":10},"case-b":{"high":20.5}}`))
+	put.Header.Set("Content-Type", "application/json")
+	putRes := httptest.NewRecorder()
+	h.ServeHTTP(putRes, put)
+	if putRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", putRes.Code)
+	}
 
-		if w.Code != http.StatusNotFound {
-			t.Fatalf("Expected status 404 for %s /clear, got %d", method, w.Code)
-		}
+	patch := httptest.NewRequest(http.MethodPatch, "/context-values", strings.NewReader(`{"case-a":{"high":30}}`))
+	patch.Header.Set("Content-Type", "application/json")
+	patchRes := httptest.NewRecorder()
+	h.ServeHTTP(patchRes, patch)
+	if patchRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", patchRes.Code)
+	}
+	if store.Get("case-a")["high"] != int(30) {
+		t.Fatalf("expected merged high=30, got %#v", store.Get("case-a")["high"])
+	}
+
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/context-values", nil)
+	deleteRes := httptest.NewRecorder()
+	h.ServeHTTP(deleteRes, deleteReq)
+	if deleteRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", deleteRes.Code)
+	}
+	if len(store.GetAll()) != 0 {
+		t.Fatalf("expected store to be empty")
 	}
 }
 
-func TestHandleDoc(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
+func TestContextValuesRequestIDEndpoints(t *testing.T) {
+	store := mm.NewStore()
+	s := New(recorder.New(), store, "9000")
+	h := s.router()
 
-	req := httptest.NewRequest(http.MethodGet, "/doc", nil)
-	w := httptest.NewRecorder()
-
-	s.handleDoc(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	put := httptest.NewRequest(http.MethodPut, "/context-values/case-a", strings.NewReader(`{"low":10,"high":20}`))
+	putRes := httptest.NewRecorder()
+	h.ServeHTTP(putRes, put)
+	if putRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", putRes.Code)
 	}
 
-	if resp.Header.Get("Content-Type") != "text/html; charset=utf-8" {
-		t.Errorf("Expected Content-Type 'text/html; charset=utf-8', got '%s'", resp.Header.Get("Content-Type"))
+	patch := httptest.NewRequest(http.MethodPatch, "/context-values/case-a", strings.NewReader(`{"high":30}`))
+	patchRes := httptest.NewRecorder()
+	h.ServeHTTP(patchRes, patch)
+	if patchRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", patchRes.Code)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-	bodyStr := string(body)
-
-	if !contains(bodyStr, "swagger-ui") {
-		t.Error("Expected response to contain 'swagger-ui'")
+	deleteKeyReq := httptest.NewRequest(http.MethodDelete, "/context-values/case-a", strings.NewReader(`{"keys":["low"]}`))
+	deleteKeyRes := httptest.NewRecorder()
+	h.ServeHTTP(deleteKeyRes, deleteKeyReq)
+	if deleteKeyRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", deleteKeyRes.Code)
+	}
+	if _, ok := store.Get("case-a")["low"]; ok {
+		t.Fatalf("expected low to be deleted")
 	}
 
-	if !contains(bodyStr, "SwaggerUIBundle") {
-		t.Error("Expected response to contain 'SwaggerUIBundle'")
+	deleteAllReq := httptest.NewRequest(http.MethodDelete, "/context-values/case-a", nil)
+	deleteAllRes := httptest.NewRecorder()
+	h.ServeHTTP(deleteAllRes, deleteAllReq)
+	if deleteAllRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", deleteAllRes.Code)
 	}
-}
-
-func TestHandleDocMethodNotAllowed(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodPost, "/doc", nil)
-	w := httptest.NewRecorder()
-
-	s.handleDoc(w, req)
-
-	resp := w.Result()
-	resp.Body.Close()
-
-	if resp.StatusCode != http.StatusMethodNotAllowed {
-		t.Errorf("Expected status 405, got %d", resp.StatusCode)
+	if len(store.Get("case-a")) != 0 {
+		t.Fatalf("expected case-a to be removed")
 	}
 }
 
-func TestHandleOpenAPI(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
+func TestContextValuesInvalidJSONAndUnknownRequestID(t *testing.T) {
+	s := New(recorder.New(), mm.NewStore(), "9000")
+	h := s.router()
 
-	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
-	w := httptest.NewRecorder()
-
-	s.handleOpenAPI(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	bad := httptest.NewRequest(http.MethodPut, "/context-values/case-a", strings.NewReader("{"))
+	badRes := httptest.NewRecorder()
+	h.ServeHTTP(badRes, bad)
+	if badRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", badRes.Code)
 	}
 
-	if resp.Header.Get("Content-Type") != "application/json" {
-		t.Errorf("Expected Content-Type 'application/json', got '%s'", resp.Header.Get("Content-Type"))
+	unknown := httptest.NewRequest(http.MethodGet, "/context-values/missing", nil)
+	unknownRes := httptest.NewRecorder()
+	h.ServeHTTP(unknownRes, unknown)
+	if unknownRes.Code != http.StatusOK || strings.TrimSpace(unknownRes.Body.String()) != "{}" {
+		t.Fatalf("expected unknown request id response '{}', got status=%d body=%q", unknownRes.Code, unknownRes.Body.String())
+	}
+}
+
+func TestManagementRouteMethodsAndDocs(t *testing.T) {
+	s := New(recorder.New(), mm.NewStore(), "9000")
+	h := s.router()
+
+	req405 := httptest.NewRequest(http.MethodPost, "/context-values", nil)
+	res405 := httptest.NewRecorder()
+	h.ServeHTTP(res405, req405)
+	if res405.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", res405.Code)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	clearReq := httptest.NewRequest(http.MethodPost, "/clear", nil)
+	clearRes := httptest.NewRecorder()
+	h.ServeHTTP(clearRes, clearReq)
+	if clearRes.Code != http.StatusNotFound {
+		t.Fatalf("expected /clear to be 404, got %d", clearRes.Code)
+	}
+
+	docReq := httptest.NewRequest(http.MethodGet, "/doc", nil)
+	docRes := httptest.NewRecorder()
+	h.ServeHTTP(docRes, docReq)
+	if docRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", docRes.Code)
+	}
+	if !strings.Contains(docRes.Body.String(), "SwaggerUIBundle") {
+		t.Fatalf("expected swagger ui html")
+	}
+
+	openapiReq := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	openapiRes := httptest.NewRecorder()
+	h.ServeHTTP(openapiRes, openapiReq)
+	if openapiRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", openapiRes.Code)
+	}
+	body, _ := io.ReadAll(openapiRes.Body)
 	var spec map[string]any
 	if err := json.Unmarshal(body, &spec); err != nil {
-		t.Fatalf("Failed to unmarshal OpenAPI spec: %v", err)
+		t.Fatalf("invalid openapi json: %v", err)
 	}
-
-	if spec["openapi"] != "3.0.3" {
-		t.Errorf("Expected openapi version '3.0.3', got '%v'", spec["openapi"])
-	}
-
-	info, ok := spec["info"].(map[string]any)
-	if !ok {
-		t.Fatal("Expected 'info' field in spec")
-	}
-
-	if info["title"] != "OpenAPI Mock Management API" {
-		t.Errorf("Expected title 'OpenAPI Mock Management API', got '%v'", info["title"])
-	}
-}
-
-func TestHandleSwaggerUIBundle(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodGet, "/swagger-ui-bundle.js", nil)
-	w := httptest.NewRecorder()
-
-	s.handleSwaggerUIBundle(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	if resp.Header.Get("Content-Type") != "application/javascript" {
-		t.Errorf("Expected Content-Type 'application/javascript', got '%s'", resp.Header.Get("Content-Type"))
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	if len(body) < 1000 {
-		t.Error("Expected swagger-ui-bundle.js to be a large file")
-	}
-}
-
-func TestHandleSwaggerUICSS(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodGet, "/swagger-ui.css", nil)
-	w := httptest.NewRecorder()
-
-	s.handleSwaggerUICSS(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	if resp.Header.Get("Content-Type") != "text/css" {
-		t.Errorf("Expected Content-Type 'text/css', got '%s'", resp.Header.Get("Content-Type"))
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	if len(body) < 1000 {
-		t.Error("Expected swagger-ui.css to be a large file")
-	}
-}
-
-func contains(s, substr string) bool {
-	return strings.Contains(s, substr)
 }

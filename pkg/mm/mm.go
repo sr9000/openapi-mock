@@ -1,6 +1,7 @@
 package mm
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"math"
@@ -57,6 +58,16 @@ func (s *Store) Get(requestID string) map[string]any {
 	return cloneMap(s.data[requestID])
 }
 
+func (s *Store) GetAll() map[string]map[string]any {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make(map[string]map[string]any, len(s.data))
+	for requestID, values := range s.data {
+		out[requestID] = cloneMap(values)
+	}
+	return out
+}
+
 func (s *Store) Replace(requestID string, values map[string]any) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -67,6 +78,60 @@ func (s *Store) Replace(requestID string, values map[string]any) {
 	s.data[requestID] = cloneMap(values)
 }
 
+func (s *Store) ReplaceAll(values map[string]map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.data = cloneNestedMap(values)
+}
+
+func (s *Store) Merge(requestID string, values map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(values) == 0 {
+		return
+	}
+	if _, ok := s.data[requestID]; !ok {
+		s.data[requestID] = make(map[string]any)
+	}
+	for k, v := range values {
+		s.data[requestID][k] = cloneValue(v)
+	}
+}
+
+func (s *Store) MergeAll(values map[string]map[string]any) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for requestID, requestValues := range values {
+		if _, ok := s.data[requestID]; !ok {
+			s.data[requestID] = make(map[string]any)
+		}
+		for k, v := range requestValues {
+			s.data[requestID][k] = cloneValue(v)
+		}
+	}
+}
+
+func (s *Store) Delete(requestID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.data, requestID)
+}
+
+func (s *Store) DeleteKeys(requestID string, keys []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	values, ok := s.data[requestID]
+	if !ok {
+		return
+	}
+	for _, key := range keys {
+		delete(values, key)
+	}
+	if len(values) == 0 {
+		delete(s.data, requestID)
+	}
+}
+
 func (s *Store) Clear() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -75,13 +140,27 @@ func (s *Store) Clear() {
 
 // DecodeObject decodes JSON object with numeric normalization.
 func DecodeObject(raw []byte) (map[string]any, error) {
-	dec := json.NewDecoder(strings.NewReader(string(raw)))
+	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
 	var payload map[string]any
 	if err := dec.Decode(&payload); err != nil {
 		return nil, err
 	}
 	return normalizeMap(payload), nil
+}
+
+func DecodeStore(raw []byte) (map[string]map[string]any, error) {
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	var payload map[string]map[string]any
+	if err := dec.Decode(&payload); err != nil {
+		return nil, err
+	}
+	out := make(map[string]map[string]any, len(payload))
+	for requestID, values := range payload {
+		out[requestID] = normalizeMap(values)
+	}
+	return out, nil
 }
 
 func normalizeMap(in map[string]any) map[string]any {
@@ -135,6 +214,17 @@ func cloneMap(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
 		out[k] = cloneValue(v)
+	}
+	return out
+}
+
+func cloneNestedMap(in map[string]map[string]any) map[string]map[string]any {
+	if in == nil {
+		return map[string]map[string]any{}
+	}
+	out := make(map[string]map[string]any, len(in))
+	for requestID, values := range in {
+		out[requestID] = cloneMap(values)
 	}
 	return out
 }

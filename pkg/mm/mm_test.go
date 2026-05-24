@@ -106,3 +106,41 @@ func TestWithValuesCopiesInput(t *testing.T) {
 		t.Fatalf("expected copied context values, got %#v", got)
 	}
 }
+
+func TestStoreCollectionOperations(t *testing.T) {
+	store := NewStore()
+	store.ReplaceAll(map[string]map[string]any{
+		"a": {"x": 1},
+		"b": {"y": 2},
+	})
+
+	store.MergeAll(map[string]map[string]any{
+		"a": {"z": 3},
+		"c": {"w": 4},
+	})
+	store.Merge("b", map[string]any{"y": 5, "k": 6})
+	store.DeleteKeys("b", []string{"k"})
+	store.Delete("c")
+
+	got := store.GetAll()
+	want := map[string]map[string]any{
+		"a": {"x": 1, "z": 3},
+		"b": {"y": 5},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("unexpected store state: got=%#v want=%#v", got, want)
+	}
+}
+
+func TestDecodeStoreNormalizesNumbers(t *testing.T) {
+	store, err := DecodeStore([]byte(`{"req":{"low":10,"ratio":0.5}}`))
+	if err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	if _, ok := store["req"]["low"].(int); !ok {
+		t.Fatalf("expected low to be int, got %T", store["req"]["low"])
+	}
+	if _, ok := store["req"]["ratio"].(float64); !ok {
+		t.Fatalf("expected ratio to be float64, got %T", store["req"]["ratio"])
+	}
+}

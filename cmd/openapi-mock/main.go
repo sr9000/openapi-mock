@@ -141,7 +141,7 @@ func runServer(cfg Config) error {
 	}
 
 	if cfg.EnableMgmt {
-		mgmtServer = mgmt.New(rec, cfg.MgmtPort)
+		mgmtServer = mgmt.New(rec, contextValues, cfg.MgmtPort)
 		_ = mgmtServer.Start()
 	}
 

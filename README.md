@@ -238,6 +238,12 @@ make compose-up
 | `GET`           | `/logs`         | Получить все записанные HTTP-вызовы в формате JSON |
 | `GET`           | `/logs/{request_id}` | Получить записи только для конкретного request id |
 | `DELETE`        | `/logs`         | Очистить все записи                                |
+| `GET`           | `/context-values` | Получить все context values по request id       |
+| `PUT/PATCH`     | `/context-values` | Полная замена/merge всех context values         |
+| `DELETE`        | `/context-values` | Очистить все context values                      |
+| `GET`           | `/context-values/{request_id}` | Получить values для request id      |
+| `PUT/PATCH`     | `/context-values/{request_id}` | Замена/merge values для request id |
+| `DELETE`        | `/context-values/{request_id}` | Удалить все values или ключи       |
 | `GET`           | `/doc`          | Интерактивная страница Swagger UI                  |
 | `GET`           | `/openapi.json` | Спецификация OpenAPI в формате JSON                |
 | `GET`           | `/metrics`      | Метрики Prometheus (RPS, тайминги, ошибки)         |
@@ -271,6 +277,24 @@ curl http://localhost:9000/logs
 curl http://localhost:9000/logs/test-id
 # Очистить записи
 curl -X DELETE http://localhost:9000/logs
+
+# Задать значения в контекст для request id
+curl -X PUT http://localhost:9000/context-values/case-a \
+  -H 'Content-Type: application/json' \
+  -d '{"low":10,"high":20}'
+
+# Прочитать значения для request id
+curl http://localhost:9000/context-values/case-a
+
+# Обновить только одно поле
+curl -X PATCH http://localhost:9000/context-values/case-a \
+  -H 'Content-Type: application/json' \
+  -d '{"high":30}'
+
+# Удалить конкретный ключ
+curl -X DELETE http://localhost:9000/context-values/case-a \
+  -H 'Content-Type: application/json' \
+  -d '{"keys":["low"]}'
 # Открыть Swagger UI в браузере
 open http://localhost:9000/doc
 ```
