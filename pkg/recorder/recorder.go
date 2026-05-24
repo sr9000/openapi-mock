@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// CallRecord represents a single gRPC call record
+// CallRecord represents a single recorded HTTP/OpenAPI call.
 type CallRecord struct {
 	RequestID  string    `json:"request_id"`
 	Method     string    `json:"method"`
@@ -18,7 +18,7 @@ type CallRecord struct {
 	DurationMs int64     `json:"duration_ms"`
 }
 
-// Recorder stores gRPC call records in memory
+// Recorder stores recorded HTTP/OpenAPI calls in memory.
 type Recorder struct {
 	mu      sync.RWMutex
 	records []CallRecord

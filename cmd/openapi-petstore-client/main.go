@@ -17,7 +17,7 @@ import (
 
 var (
 	baseURL = flag.String("base-url", "http://localhost:8080", "base URL of openapi-mock server")
-	// Keep it modest by default. This client spawns goroutines like grpc-cplx-client.
+	// Keep it modest by default. This load generator spawns request goroutines continuously.
 	tick = flag.Duration("tick", 100*time.Millisecond, "rate update tick")
 )
 

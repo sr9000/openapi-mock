@@ -1,4 +1,4 @@
-.PHONY: all build run wire clean help openapi stub
+.PHONY: all build run wire clean help openapi stub petstore-load
 # Default target: show help when `make` is called without arguments
 .DEFAULT_GOAL := help
 
@@ -38,6 +38,12 @@ run:
 	@echo "===================="
 	@echo "Running OpenAPI server..."
 	go run ./cmd/openapi-mock run
+# Run the sample petstore load generator
+petstore-load:
+	@echo
+	@echo "===================="
+	@echo "Running Petstore load generator..."
+	go run ./cmd/openapi-petstore-client
 # Docker operations
 docker-build:
 	@echo
@@ -85,6 +91,7 @@ help:
 	@echo "  wire           - Update wire dependency injection"
 	@echo "  build          - Build server binary"
 	@echo "  run            - Run OpenAPI server"
+	@echo "  petstore-load  - Run the sample Petstore load generator"
 	@echo "  docker-build   - Build production Docker image"
 	@echo "  docker-run     - Run production Docker container"
 	@echo "  docker-dev     - Start development environment (watch mode via docker-compose.dev.yaml)"

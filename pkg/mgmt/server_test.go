@@ -262,8 +262,8 @@ func TestHandleOpenAPI(t *testing.T) {
 		t.Fatal("Expected 'info' field in spec")
 	}
 
-	if info["title"] != "gRPC Mock Management API" {
-		t.Errorf("Expected title 'gRPC Mock Management API', got '%v'", info["title"])
+	if info["title"] != "OpenAPI Mock Management API" {
+		t.Errorf("Expected title 'OpenAPI Mock Management API', got '%v'", info["title"])
 	}
 }
 

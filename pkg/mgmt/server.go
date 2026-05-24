@@ -25,7 +25,7 @@ const swaggerUIHTML = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>gRPC Mock Management API</title>
+	<title>OpenAPI Mock Management API</title>
     <link rel="stylesheet" href="/swagger-ui.css">
 </head>
 <body>
@@ -47,7 +47,7 @@ const swaggerUIHTML = `<!DOCTYPE html>
 </body>
 </html>`
 
-// Server is the management HTTP server for e2e testing
+// Server is the management HTTP server for e2e testing.
 type Server struct {
 	recorder *recorder.Recorder
 	server   *http.Server
@@ -96,7 +96,7 @@ func (s *Server) Stop(ctx context.Context) error {
 	return nil
 }
 
-// handleLogs returns all recorded gRPC calls as JSON
+// handleLogs returns all recorded HTTP/OpenAPI calls as JSON.
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -114,7 +114,7 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-// handleClear removes all recorded gRPC calls
+// handleClear removes all recorded HTTP/OpenAPI calls.
 func (s *Server) handleClear(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

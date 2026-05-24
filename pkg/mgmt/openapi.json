@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "gRPC Mock Management API",
-    "description": "Management API for gRPC mock server used in e2e testing. Provides endpoints to retrieve recorded gRPC calls and clear logs.",
+    "title": "OpenAPI Mock Management API",
+    "description": "Management API for the OpenAPI mock server used in e2e testing. Provides endpoints to retrieve recorded HTTP/OpenAPI calls and clear logs.",
     "version": "1.0.0"
   },
   "servers": [
@@ -14,8 +14,8 @@
   "paths": {
     "/logs": {
       "get": {
-        "summary": "Get all recorded gRPC calls",
-        "description": "Returns all recorded gRPC calls as JSON array, including request/response bodies, timestamps, errors, and panics.",
+        "summary": "Get all recorded HTTP/OpenAPI calls",
+        "description": "Returns all recorded HTTP/OpenAPI calls as JSON array, including request/response bodies, timestamps, errors, and panics.",
         "operationId": "getLogs",
         "responses": {
           "200": {
@@ -39,8 +39,8 @@
     },
     "/clear": {
       "post": {
-        "summary": "Clear all recorded gRPC calls",
-        "description": "Removes all recorded gRPC calls from memory.",
+        "summary": "Clear all recorded HTTP/OpenAPI calls",
+        "description": "Removes all recorded HTTP/OpenAPI calls from memory.",
         "operationId": "clearLogs",
         "responses": {
           "200": {
@@ -62,8 +62,8 @@
         }
       },
       "delete": {
-        "summary": "Clear all recorded gRPC calls",
-        "description": "Removes all recorded gRPC calls from memory.",
+        "summary": "Clear all recorded HTTP/OpenAPI calls",
+        "description": "Removes all recorded HTTP/OpenAPI calls from memory.",
         "operationId": "clearLogsDelete",
         "responses": {
           "200": {
@@ -135,7 +135,7 @@
           },
           "method": {
             "type": "string",
-            "description": "Full gRPC method name (e.g., /EchoService/Echo)"
+            "description": "Request method and resolved route template (for example, GET /pets/{petId})"
           },
           "timestamp": {
             "type": "string",

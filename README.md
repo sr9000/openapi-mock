@@ -272,6 +272,26 @@ curl -X POST http://localhost:9000/clear
 open http://localhost:9000/doc
 ```
 
+## 🧪 Генератор нагрузки для примера Petstore
+
+В репозитории есть вспомогательная утилита `cmd/openapi-petstore-client`, которая генерирует фоновую HTTP-нагрузку на `Petstore`-эндпоинты. Она полезна для локальной проверки метрик, логов, panic/error-path и observability-дашбордов.
+
+Быстрый запуск:
+
+```bash
+# В одном терминале — сервер
+./bin/openapi-mock run
+
+# В другом — генератор нагрузки
+make petstore-load
+```
+
+Утилита поддерживает базовый URL и частоту пересчета нагрузки через флаги:
+
+```bash
+go run ./cmd/openapi-petstore-client --base-url http://localhost:8080 --tick 100ms
+```
+
 ## 🐳 Docker
 
 ### Разработка
