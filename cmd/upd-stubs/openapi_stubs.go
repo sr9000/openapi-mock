@@ -54,10 +54,8 @@ func generateOpenAPIStubFile(outDir string, spec *openapiSpec, tag string, ops [
 	var buf bytes.Buffer
 
 	imports := map[string]string{
-		"context":                  "",
-		"log":                      "",
-		"openapi-mock/pkg/ctxkeys": "",
-		spec.GenPkgPath:            "gen",
+		"context":       "",
+		spec.GenPkgPath: "gen",
 	}
 
 	fmt.Fprintf(&buf, "package %s\n\n", spec.PkgName)
@@ -108,10 +106,7 @@ func generateOpenAPIMethod(structName string, spec *openapiSpec, op opInfo) stri
 	respType := fmt.Sprintf("gen.%sResponseObject", methodName)
 
 	fmt.Fprintf(&buf, "func (h *%s) %s(ctx context.Context, request %s) (%s, error) {\n", structName, methodName, reqType, respType)
-	fmt.Fprintf(&buf, "\tif h.EnableLogging {\n")
-	fmt.Fprintf(&buf, "\t\treqID, _ := ctx.Value(ctxkeys.RequestID{}).(string)\n")
-	fmt.Fprintf(&buf, "\t\tlog.Printf(\"[req_id=%%s] [%s] %s\", reqID)\n", structName, methodName)
-	fmt.Fprintf(&buf, "\t}\n\n")
+	fmt.Fprintf(&buf, "\t_ = h\n")
 
 	// Avoid unused warning for request in basic stubs
 	fmt.Fprintf(&buf, "\t_ = request\n\n")

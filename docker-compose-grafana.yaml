@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: openapi-mock-app
+    user: "0:0"
     ports:
       # HTTP server port
       - "${HTTP_PORT:-8080}:8080"
@@ -14,11 +15,22 @@ services:
       - "${MGMT_PORT:-9000}:9000"
     environment:
       - HOST=0.0.0.0
-      - HTTP_LOGGING=${HTTP_LOGGING:-false}
+      - HTTP_LOGGING=${HTTP_LOGGING:-true}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - LOG_OUTPUT=${LOG_OUTPUT:-file}
+      - LOG_FILE=/var/log/openapi-mock/openapi-mock.log
+      - TRACE_ENABLED=${TRACE_ENABLED:-true}
+      - TRACE_EXPORTER=${TRACE_EXPORTER:-otlp-http}
+      - TRACE_ENDPOINT=otel-collector:4318
+      - TRACE_SAMPLING_RATIO=${TRACE_SAMPLING_RATIO:-1.0}
+      - REQUEST_ID_HEADERS=${REQUEST_ID_HEADERS:-X-Request-ID,X-Request-Id,X-Correlation-ID}
+      - REQUEST_ID_RESPONSE_HEADER=${REQUEST_ID_RESPONSE_HEADER:-X-Request-ID}
     command: ["run", "--metrics-port", "9100", "--mgmt-port", "9000"]
+    volumes:
+      - app_logs:/var/log/openapi-mock
     restart: unless-stopped
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.53.0
     container_name: openapi-mock-prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yaml'
@@ -30,8 +42,80 @@ services:
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
-      - openapi-mock
+      openapi-mock:
+        condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.102.1
+    container_name: openapi-mock-otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      tempo:
+        condition: service_healthy
+    ports:
+      - "4318:4318"
+      - "13133:13133"
+      - "8888:8888"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:13133/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+  tempo:
+    image: grafana/tempo:2.4.1
+    container_name: openapi-mock-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_data:/tmp/tempo
+    ports:
+      - "3200:3200"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3200/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: openapi-mock-loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: openapi-mock-promtail
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    volumes:
+      - ./promtail/promtail.yaml:/etc/promtail/config.yaml:ro
+      - app_logs:/var/log/openapi-mock:ro
+    depends_on:
+      loki:
+        condition: service_healthy
+      openapi-mock:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9080/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
   grafana:
     build:
       context: ./grafana
@@ -43,7 +127,20 @@ services:
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 volumes:
   prometheus_data:
+  tempo_data:
+  loki_data:
+  app_logs:

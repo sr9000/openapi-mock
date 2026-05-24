@@ -6,6 +6,7 @@ import (
 	"go/format"
 	"log"
 	"sort"
+	"strconv"
 	"strings"
 
 	goimports "golang.org/x/tools/imports"
@@ -24,12 +25,14 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	fmt.Fprintf(&buf, "package app\n\n")
 
 	fmt.Fprintf(&buf, "import (\n")
+	fmt.Fprintf(&buf, "\t\"context\"\n")
 	fmt.Fprintf(&buf, "\t\"net/http\"\n\n")
 	fmt.Fprintf(&buf, "\t\"github.com/go-chi/chi/v5\"\n")
 	fmt.Fprintf(&buf, "\t\"github.com/google/wire\"\n\n")
 
 	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/metrics\"\n")
 	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/middleware\"\n")
+	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/observability\"\n")
 
 	// Import all generated packages first, then stubs
 	type specImport struct {
@@ -107,7 +110,13 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		params = append(params, "errHandlers *middleware.ErrorHandlers")
 		fmt.Fprintf(&buf, "%s) %s.ServerInterface {\n", strings.Join(params, ", "), imp.GenAlias)
 		fmt.Fprintf(&buf, "\tstrict := %s.NewCompositeHandlers(%s)\n", imp.StubAlias, extractFieldNames(handlerParams))
-		fmt.Fprintf(&buf, "\treturn %s.NewStrictHandlerWithOptions(strict, nil, %s.StrictHTTPServerOptions{\n", imp.GenAlias, imp.GenAlias)
+		fmt.Fprintf(&buf, "\tstrictMiddlewares := []%s.StrictMiddlewareFunc{func(next %s.StrictHandlerFunc, operationID string) %s.StrictHandlerFunc {\n", imp.GenAlias, imp.GenAlias, imp.GenAlias)
+		fmt.Fprintf(&buf, "\t\treturn func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {\n")
+		fmt.Fprintf(&buf, "\t\t\tctx = observability.WithOperation(ctx, operationID)\n")
+		fmt.Fprintf(&buf, "\t\t\treturn next(ctx, w, r, request)\n")
+		fmt.Fprintf(&buf, "\t\t}\n")
+		fmt.Fprintf(&buf, "\t}}\n")
+		fmt.Fprintf(&buf, "\treturn %s.NewStrictHandlerWithOptions(strict, strictMiddlewares, %s.StrictHTTPServerOptions{\n", imp.GenAlias, imp.GenAlias)
 		fmt.Fprintf(&buf, "\t\tRequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,\n")
 		fmt.Fprintf(&buf, "\t\tResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,\n")
 		fmt.Fprintf(&buf, "\t})\n")
@@ -115,12 +124,22 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	}
 
 	// Error handlers provider
-	fmt.Fprintf(&buf, "func provideErrorHandlers(m *metrics.Metrics) *middleware.ErrorHandlers {\n")
-	fmt.Fprintf(&buf, "\treturn middleware.NewErrorHandlers(m)\n")
+	fmt.Fprintf(&buf, "func provideOperationResolver() middleware.OperationResolver {\n")
+	fmt.Fprintf(&buf, "\tresolver := middleware.NewOperationResolver(map[string]string{\n")
+	for _, entry := range collectResolverEntries(specs) {
+		fmt.Fprintf(&buf, "\t\t%s: %s,\n", strconv.Quote(entry.Key), strconv.Quote(entry.Operation))
+	}
+	fmt.Fprintf(&buf, "\t})\n")
+	fmt.Fprintf(&buf, "\tmiddleware.SetOperationResolver(resolver)\n")
+	fmt.Fprintf(&buf, "\treturn resolver\n")
+	fmt.Fprintf(&buf, "}\n\n")
+
+	fmt.Fprintf(&buf, "func provideErrorHandlers(m *metrics.Metrics, operationResolver middleware.OperationResolver) *middleware.ErrorHandlers {\n")
+	fmt.Fprintf(&buf, "\treturn middleware.NewErrorHandlers(m, operationResolver)\n")
 	fmt.Fprintf(&buf, "}\n\n")
 
 	// Router provider
-	fmt.Fprintf(&buf, "func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, ")
+	fmt.Fprintf(&buf, "func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, errHandlers *middleware.ErrorHandlers, ")
 	var routerParams []string
 	for _, ws := range wireSpecs {
 		imp := ws.Imp
@@ -135,7 +154,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	for _, ws := range wireSpecs {
 		imp := ws.Imp
 		spec := ws.Spec
-		fmt.Fprintf(&buf, "\t%s.HandlerFromMux(%s, r)\n", imp.GenAlias, spec.PkgName+"Handler")
+		fmt.Fprintf(&buf, "\t%s.HandlerWithOptions(%s, %s.ChiServerOptions{BaseRouter: r, ErrorHandlerFunc: errHandlers.RequestErrorHandler})\n", imp.GenAlias, spec.PkgName+"Handler", imp.GenAlias)
 	}
 	fmt.Fprintf(&buf, "\treturn r\n")
 	fmt.Fprintf(&buf, "}\n\n")
@@ -152,6 +171,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		fmt.Fprintf(&buf, "\tprovide%sHandlers,\n", toPascalCase(spec.PkgName))
 	}
 	fmt.Fprintf(&buf, "\tprovideErrorHandlers,\n")
+	fmt.Fprintf(&buf, "\tprovideOperationResolver,\n")
 	fmt.Fprintf(&buf, "\tprovideHTTPRouter,\n")
 	fmt.Fprintf(&buf, "\twire.Struct(new(HTTPApp), \"*\"),\n")
 	fmt.Fprintf(&buf, ")\n\n")
@@ -187,4 +207,29 @@ func extractFieldNames(params []string) string {
 		}
 	}
 	return strings.Join(names, ", ")
+}
+
+type resolverEntry struct {
+	Key       string
+	Operation string
+}
+
+func collectResolverEntries(specs []*openapiSpec) []resolverEntry {
+	entries := map[string]string{}
+	for _, spec := range specs {
+		for _, tag := range spec.getSortedTags() {
+			for _, op := range spec.Tags[tag] {
+				key := strings.ToUpper(op.Method) + " " + op.Path
+				entries[key] = resolveOperationMethodName(spec, op)
+			}
+		}
+	}
+	out := make([]resolverEntry, 0, len(entries))
+	for key, operation := range entries {
+		out = append(out, resolverEntry{Key: key, Operation: operation})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Key < out[j].Key
+	})
+	return out
 }

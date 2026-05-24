@@ -52,8 +52,10 @@ docker-dev:
 compose-up:
 	@echo
 	@echo "===================="
+	@echo "Building full stack images (plain progress)..."
+	docker compose --progress plain -f docker-compose-grafana.yaml build
 	@echo "Starting full stack (OpenAPI Mock + Prometheus + Grafana)..."
-	docker compose -f docker-compose-grafana.yaml up --build -d
+	docker compose -f docker-compose-grafana.yaml up -d
 compose-logs:
 	@echo
 	@echo "===================="
@@ -64,6 +66,11 @@ compose-down:
 	@echo "===================="
 	@echo "Stopping full stack..."
 	docker compose -f docker-compose-grafana.yaml down
+compose-smoke:
+	@echo
+	@echo "===================="
+	@echo "Running observability stack smoke test..."
+	./scripts/validate-observability-stack.sh
 # Show help
 help:
 	@echo "Available targets:"
@@ -78,3 +85,4 @@ help:
 	@echo "  compose-up     - Start full stack (Mock + Monitoring)"
 	@echo "  compose-logs   - Follow logs of full stack"
 	@echo "  compose-down   - Stop full stack"
+	@echo "  compose-smoke  - Run automated stack smoke validation"

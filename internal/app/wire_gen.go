@@ -7,6 +7,7 @@
 package app
 
 import (
+	"context"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/wire"
 	"net/http"
@@ -16,19 +17,21 @@ import (
 	"openapi-mock/internal/stubs/petstore"
 	"openapi-mock/pkg/metrics"
 	"openapi-mock/pkg/middleware"
+	"openapi-mock/pkg/observability"
 )
 
 // Injectors from openapi_wire.go:
 
 func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, m *metrics.Metrics, enableLogging bool) (*HTTPApp, error) {
+	operationResolver := provideOperationResolver()
+	errorHandlers := provideErrorHandlers(m, operationResolver)
 	echoHandlers := echo.NewEchoHandlers(enableLogging)
 	statusHandlers := echo.NewStatusHandlers(enableLogging)
-	errorHandlers := provideErrorHandlers(m)
 	serverInterface := provideEchoHandlers(echoHandlers, statusHandlers, errorHandlers)
 	defaultHandlers := petstore.NewDefaultHandlers(enableLogging)
 	petsHandlers := petstore.NewPetsHandlers(enableLogging)
 	petstoreServerInterface := providePetstoreHandlers(defaultHandlers, petsHandlers, errorHandlers)
-	mux := provideHTTPRouter(middlewares, serverInterface, petstoreServerInterface)
+	mux := provideHTTPRouter(middlewares, errorHandlers, serverInterface, petstoreServerInterface)
 	httpApp := &HTTPApp{
 		Router:          mux,
 		EchoEcho:        echoHandlers,
@@ -51,7 +54,13 @@ type HTTPApp struct {
 
 func provideEchoHandlers(echo3 *echo.EchoHandlers, status *echo.StatusHandlers, errHandlers *middleware.ErrorHandlers) echo2.ServerInterface {
 	strict := echo.NewCompositeHandlers(echo3, status)
-	return echo2.NewStrictHandlerWithOptions(strict, nil, echo2.StrictHTTPServerOptions{
+	strictMiddlewares := []echo2.StrictMiddlewareFunc{func(next echo2.StrictHandlerFunc, operationID string) echo2.StrictHandlerFunc {
+		return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+			ctx = observability.WithOperation(ctx, operationID)
+			return next(ctx, w, r, request)
+		}
+	}}
+	return echo2.NewStrictHandlerWithOptions(strict, strictMiddlewares, echo2.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
 	})
@@ -59,27 +68,51 @@ func provideEchoHandlers(echo3 *echo.EchoHandlers, status *echo.StatusHandlers, 
 
 func providePetstoreHandlers(default_ *petstore.DefaultHandlers, pets *petstore.PetsHandlers, errHandlers *middleware.ErrorHandlers) petstore2.ServerInterface {
 	strict := petstore.NewCompositeHandlers(default_, pets)
-	return petstore2.NewStrictHandlerWithOptions(strict, nil, petstore2.StrictHTTPServerOptions{
+	strictMiddlewares := []petstore2.StrictMiddlewareFunc{func(next petstore2.StrictHandlerFunc, operationID string) petstore2.StrictHandlerFunc {
+		return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+			ctx = observability.WithOperation(ctx, operationID)
+			return next(ctx, w, r, request)
+		}
+	}}
+	return petstore2.NewStrictHandlerWithOptions(strict, strictMiddlewares, petstore2.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
 	})
 }
 
-func provideErrorHandlers(m *metrics.Metrics) *middleware.ErrorHandlers {
-	return middleware.NewErrorHandlers(m)
+func provideOperationResolver() middleware.OperationResolver {
+	resolver := middleware.NewOperationResolver(map[string]string{
+		"DELETE /pets/{petId}": "DeletePet",
+		"GET /echo/headers":    "EchoHeaders",
+		"GET /echo/{message}":  "EchoPath",
+		"GET /health":          "HealthCheck",
+		"GET /isfine":          "IsFine",
+		"GET /pets":            "ListPets",
+		"GET /pets/{petId}":    "GetPetById",
+		"GET /status":          "GetStatus",
+		"POST /echo":           "Echo",
+		"POST /pets":           "CreatePet",
+	})
+	middleware.SetOperationResolver(resolver)
+	return resolver
 }
 
-func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, echoHandler echo2.ServerInterface, petstoreHandler petstore2.ServerInterface) *chi.Mux {
+func provideErrorHandlers(m *metrics.Metrics, operationResolver middleware.OperationResolver) *middleware.ErrorHandlers {
+	return middleware.NewErrorHandlers(m, operationResolver)
+}
+
+func provideHTTPRouter(middlewares []func(http.Handler) http.Handler, errHandlers *middleware.ErrorHandlers, echoHandler echo2.ServerInterface, petstoreHandler petstore2.ServerInterface) *chi.Mux {
 	r := chi.NewRouter()
 	for _, mw := range middlewares {
 		r.Use(mw)
 	}
-	echo2.HandlerFromMux(echoHandler, r)
-	petstore2.HandlerFromMux(petstoreHandler, r)
+	echo2.HandlerWithOptions(echoHandler, echo2.ChiServerOptions{BaseRouter: r, ErrorHandlerFunc: errHandlers.RequestErrorHandler})
+	petstore2.HandlerWithOptions(petstoreHandler, petstore2.ChiServerOptions{BaseRouter: r, ErrorHandlerFunc: errHandlers.RequestErrorHandler})
 	return r
 }
 
 var HTTPProviderSet = wire.NewSet(echo.NewEchoHandlers, echo.NewStatusHandlers, provideEchoHandlers, petstore.NewDefaultHandlers, petstore.NewPetsHandlers, providePetstoreHandlers,
 	provideErrorHandlers,
+	provideOperationResolver,
 	provideHTTPRouter, wire.Struct(new(HTTPApp), "*"),
 )

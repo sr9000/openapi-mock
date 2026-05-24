@@ -47,7 +47,7 @@ func NewHTTP(port string) *Metrics {
 				Name: "http_requests_total",
 				Help: "Total number of HTTP requests",
 			},
-			[]string{"method", "endpoint", "status"},
+			[]string{"method", "endpoint", "operation", "status"},
 		),
 		HTTPRequestDuration: prometheus.NewHistogramVec(
 			prometheus.HistogramOpts{
@@ -55,21 +55,21 @@ func NewHTTP(port string) *Metrics {
 				Help:    "Histogram of HTTP request latencies",
 				Buckets: prometheus.DefBuckets,
 			},
-			[]string{"method", "endpoint", "status"},
+			[]string{"method", "endpoint", "operation", "status"},
 		),
 		HTTPErrorsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "http_errors_total",
 				Help: "Total number of handled/unhandled HTTP errors from handlers",
 			},
-			[]string{"method", "endpoint", "status", "message"},
+			[]string{"method", "endpoint", "operation", "status", "kind"},
 		),
 		HTTPPanicsTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "http_panics_total",
 				Help: "Total number of panics caught in HTTP handlers",
 			},
-			[]string{"method", "endpoint", "status", "message"},
+			[]string{"method", "endpoint", "operation", "status", "kind"},
 		),
 		MemoryUsage: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -128,37 +128,35 @@ func (m *Metrics) RecordPanic(method, panicMsg string) {
 }
 
 // RecordHTTPRequest records an HTTP request with its duration and status code
-func (m *Metrics) RecordHTTPRequest(method, endpoint string, durationMs int64, statusCode int) {
+func (m *Metrics) RecordHTTPRequest(method, endpoint, operation string, durationMs int64, statusCode int) {
 	status := strconv.Itoa(statusCode)
 	if m.HTTPRequestsTotal != nil {
-		m.HTTPRequestsTotal.WithLabelValues(method, endpoint, status).Inc()
+		m.HTTPRequestsTotal.WithLabelValues(method, endpoint, operation, status).Inc()
 	}
 	if m.HTTPRequestDuration != nil {
-		m.HTTPRequestDuration.WithLabelValues(method, endpoint, status).Observe(float64(durationMs) / 1000.0)
+		m.HTTPRequestDuration.WithLabelValues(method, endpoint, operation, status).Observe(float64(durationMs) / 1000.0)
 	}
 }
 
 // RecordHTTPError records an error from HTTP handler.
 // statusCode should be the HTTP status written to the client for this error.
-func (m *Metrics) RecordHTTPError(method, endpoint string, statusCode int, message string) {
-	// Truncate message to prevent high cardinality
-	if len(message) > 100 {
-		message = message[:100] + "..."
+func (m *Metrics) RecordHTTPError(method, endpoint, operation string, statusCode int, kind string) {
+	if kind == "" {
+		kind = "unknown"
 	}
 	if m.HTTPErrorsTotal != nil {
-		m.HTTPErrorsTotal.WithLabelValues(method, endpoint, strconv.Itoa(statusCode), message).Inc()
+		m.HTTPErrorsTotal.WithLabelValues(method, endpoint, operation, strconv.Itoa(statusCode), kind).Inc()
 	}
 }
 
 // RecordHTTPPanic records a panic caught in HTTP handler.
 // statusCode should be the HTTP status written to the client for this panic (typically 500).
-func (m *Metrics) RecordHTTPPanic(method, endpoint string, statusCode int, message string) {
-	// Truncate message to prevent high cardinality
-	if len(message) > 100 {
-		message = message[:100] + "..."
+func (m *Metrics) RecordHTTPPanic(method, endpoint, operation string, statusCode int, kind string) {
+	if kind == "" {
+		kind = "panic"
 	}
 	if m.HTTPPanicsTotal != nil {
-		m.HTTPPanicsTotal.WithLabelValues(method, endpoint, strconv.Itoa(statusCode), message).Inc()
+		m.HTTPPanicsTotal.WithLabelValues(method, endpoint, operation, strconv.Itoa(statusCode), kind).Inc()
 	}
 }
 
