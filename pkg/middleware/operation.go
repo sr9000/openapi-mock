@@ -13,6 +13,7 @@ import (
 func OperationContext() strictnethttp.StrictHTTPMiddlewareFunc {
 	return func(next strictnethttp.StrictHTTPHandlerFunc, operationID string) strictnethttp.StrictHTTPHandlerFunc {
 		return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+			ctx = observability.WithRequestMetadata(ctx, observability.EnsureRequestMetadata(ctx))
 			ctx = observability.WithOperation(ctx, operationID)
 			return next(ctx, w, r, request)
 		}

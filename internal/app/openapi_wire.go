@@ -28,7 +28,8 @@ type HTTPApp struct {
 
 func provideEchoHandlers(echo *echostub0.EchoHandlers, status *echostub0.StatusHandlers, errHandlers *middleware.ErrorHandlers) echogen0.ServerInterface {
 	strict := echostub0.NewCompositeHandlers(echo, status)
-	return echogen0.NewStrictHandlerWithOptions(strict, nil, echogen0.StrictHTTPServerOptions{
+	strictMiddlewares := []echogen0.StrictMiddlewareFunc{middleware.OperationContext()}
+	return echogen0.NewStrictHandlerWithOptions(strict, strictMiddlewares, echogen0.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
 	})
@@ -36,7 +37,8 @@ func provideEchoHandlers(echo *echostub0.EchoHandlers, status *echostub0.StatusH
 
 func providePetstoreHandlers(default_ *petstorestub1.DefaultHandlers, pets *petstorestub1.PetsHandlers, errHandlers *middleware.ErrorHandlers) petstoregen1.ServerInterface {
 	strict := petstorestub1.NewCompositeHandlers(default_, pets)
-	return petstoregen1.NewStrictHandlerWithOptions(strict, nil, petstoregen1.StrictHTTPServerOptions{
+	strictMiddlewares := []petstoregen1.StrictMiddlewareFunc{middleware.OperationContext()}
+	return petstoregen1.NewStrictHandlerWithOptions(strict, strictMiddlewares, petstoregen1.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
 	})

@@ -72,7 +72,9 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 			rw := &responseWriter{ResponseWriter: w, statusCode: 200}
 			rw.Header().Set(opts.RequestIDResponseHeader, reqID)
 
-			ctx := observability.WithRequestID(r.Context(), reqID)
+			metadata := observability.EnsureRequestMetadata(r.Context())
+			ctx := observability.WithRequestMetadata(r.Context(), metadata)
+			ctx = observability.WithRequestID(ctx, reqID)
 			ctx = context.WithValue(ctx, ctxkeys.RequestID{}, reqID)
 			ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header))
 			ctx, span := opts.Tracer.Start(ctx, r.Method+" "+r.URL.Path, trace.WithSpanKind(trace.SpanKindServer))
