@@ -23,9 +23,14 @@ func (h *EchoHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) 
 		logger.Info().Str("handler", "EchoHandlers").Msg("Echo")
 	}
 
-	_ = request
+	echoValue := ""
+	if request.JSONBody != nil && request.JSONBody.Message != nil {
+		echoValue = *request.JSONBody.Message
+	} else if request.TextBody != nil {
+		echoValue = string(*request.TextBody)
+	}
 
-	return gen.Echo200JSONResponse{}, nil
+	return gen.Echo200JSONResponse{Echo: echoValue}, nil
 }
 
 func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersRequestObject) (gen.EchoHeadersResponseObject, error) {
@@ -35,8 +40,15 @@ func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersR
 	}
 
 	_ = request
+	headers := map[string]string{}
+	if requestID := observability.RequestID(ctx); requestID != "" {
+		headers["X-Request-ID"] = requestID
+	}
+	if traceID := observability.TraceID(ctx); traceID != "" {
+		headers["X-Trace-ID"] = traceID
+	}
 
-	return gen.EchoHeaders200JSONResponse{}, nil
+	return gen.EchoHeaders200JSONResponse{Headers: &headers}, nil
 }
 
 func (h *EchoHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequestObject) (gen.EchoPathResponseObject, error) {
@@ -45,7 +57,5 @@ func (h *EchoHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequest
 		logger.Info().Str("handler", "EchoHandlers").Msg("EchoPath")
 	}
 
-	_ = request
-
-	return gen.EchoPath200JSONResponse{}, nil
+	return gen.EchoPath200JSONResponse{Echo: request.Message}, nil
 }
