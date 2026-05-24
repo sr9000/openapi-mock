@@ -17,7 +17,7 @@ import (
 const openapiModulePfx = "openapi-mock"
 
 var (
-	specsDir        = "specs"
+	specsDir        = "api"
 	openapiGenDir   = "internal/generated"
 	openapiStubsDir = "internal/stubs"
 )
@@ -25,7 +25,7 @@ var (
 // openapiSpec represents a discovered OpenAPI specification
 type openapiSpec struct {
 	SpecPath    string              // Path to the openapi.yaml file
-	RelPath     string              // Relative path from specs/ (e.g., "petstore")
+	RelPath     string              // Relative path from api/ (e.g., "petstore" or "petstore/v3")
 	PkgName     string              // Package name (e.g., "petstore")
 	GenPkgPath  string              // Generated package import path
 	StubPkgPath string              // Stubs package import path
