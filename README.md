@@ -178,6 +178,46 @@
 ./bin/openapi-mock run 127.0.0.1 8080
 ```
 
+## 🔭 Обозреваемость (Observability)
+
+Проект включает встроенную поддержку современных практик Observability для удобства отладки и прозрачности:
+
+### Метрики (Prometheus)
+На выделенном порту (`9100` по умолчанию) работает сервер метрик. В метриках автоматически подставляются конкретные OpenAPI-операции (поле `operation`), чтобы можно было легко агрегировать статистику по конкретным ручкам даже при использовании путей с параметрами:
+```bash
+curl -sS http://localhost:9100/metrics | grep http_requests_total
+# Пример вывода:
+# http_requests_total{endpoint="/echo",method="POST",operation="Echo",status="200"} 1
+# http_requests_total{endpoint="/pets/{petId}",method="GET",operation="GetPetById",status="200"} 1
+```
+В случае ошибок парсинга (например, неверный JSON) метрики будут содержать `kind="request_parse"`, но при этом сохранят правильную привязку к исходному `endpoint` и `operation`.
+
+### Трассировка (OpenTelemetry / Tempo)
+При включении флага `TRACE_ENABLED=true` (по умолчанию включено в `docker-compose-grafana.yaml`) сервер автоматически извлекает `traceparent` из заголовков HTTP-запросов и отправляет спаны в OpenTelemetry Collector.
+```bash
+# Пример запроса с пробросом конкретного trace_id = 4bf92f3577b34da6a3ce929d0e0e4736
+curl -X POST http://localhost:8080/echo \
+  -H 'Content-Type: application/json' \
+  -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' \
+  -d '{"message":"traced"}'
+```
+
+### Структурированное логирование (Loki / ZeroLog)
+Все логи HTTP-запросов (access logs) и внутреннее логирование автоматически связываются с `request_id`, `trace_id` и `operation`. 
+Формат логов по умолчанию — `json` (управляется переменной `LOG_FORMAT`), что делает их готовыми для парсинга. В заглушках (stubs) рекомендуется использовать контекстный логгер из `pkg/observability` для сохранения привязки к `trace_id`:
+```go
+logger := observability.Logger(ctx, zerolog.Nop())
+logger.Info().Msg("Запрос достиг бизнес-логики") // Будет содержать trace_id и operation
+```
+
+### Полный локальный стек (Grafana)
+Вы можете поднять полный изолированный стек (Prometheus, Loki, Tempo, OTel Collector, Grafana), выполнив:
+```bash
+make compose-up
+```
+- **Grafana** будет доступна по адресу `http://localhost:3000`.
+- Заранее настроенные дашборды и источники данных покажут RPS, ошибки, распределение по OpenAPI-операциям и полные цепочки трейсов с привязанными логами.
+
 ## 🔧 Сервер управления (Management API)
 
 Для поддержки e2e-тестирования OpenAPI-мок включает встроенный HTTP-сервер управления на порту 9000 (по умолчанию).
