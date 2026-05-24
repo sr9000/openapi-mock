@@ -18,6 +18,7 @@ import (
 	"openapi-mock/pkg/metrics"
 	"openapi-mock/pkg/mgmt"
 	"openapi-mock/pkg/middleware"
+	"openapi-mock/pkg/mm"
 	"openapi-mock/pkg/observability"
 	"openapi-mock/pkg/recorder"
 )
@@ -130,6 +131,7 @@ func runServer(cfg Config) error {
 	log.Printf("Starting HTTP server on %s", addr)
 
 	rec := recorder.New()
+	contextValues := mm.NewStore()
 
 	var m *metrics.Metrics
 	var mgmtServer *mgmt.Server
@@ -181,6 +183,7 @@ func runServer(cfg Config) error {
 			RequestIDResponseHeader: cfg.RequestIDResponseHeader,
 			BaseLogger:              baseLogger,
 		}),
+		middleware.ContextValues(contextValues),
 	}
 
 	// Build app via wire (handles all routing)
