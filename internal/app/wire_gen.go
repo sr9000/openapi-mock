@@ -7,7 +7,6 @@
 package app
 
 import (
-	"context"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/wire"
 	"net/http"
@@ -17,7 +16,6 @@ import (
 	"openapi-mock/internal/stubs/petstore"
 	"openapi-mock/pkg/metrics"
 	"openapi-mock/pkg/middleware"
-	"openapi-mock/pkg/observability"
 )
 
 // Injectors from openapi_wire.go:
@@ -54,12 +52,7 @@ type HTTPApp struct {
 
 func provideEchoHandlers(echo3 *echo.EchoHandlers, status *echo.StatusHandlers, errHandlers *middleware.ErrorHandlers) echo2.ServerInterface {
 	strict := echo.NewCompositeHandlers(echo3, status)
-	strictMiddlewares := []echo2.StrictMiddlewareFunc{func(next echo2.StrictHandlerFunc, operationID string) echo2.StrictHandlerFunc {
-		return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-			ctx = observability.WithOperation(ctx, operationID)
-			return next(ctx, w, r, request)
-		}
-	}}
+	strictMiddlewares := []echo2.StrictMiddlewareFunc{middleware.OperationContext()}
 	return echo2.NewStrictHandlerWithOptions(strict, strictMiddlewares, echo2.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
@@ -68,12 +61,7 @@ func provideEchoHandlers(echo3 *echo.EchoHandlers, status *echo.StatusHandlers, 
 
 func providePetstoreHandlers(default_ *petstore.DefaultHandlers, pets *petstore.PetsHandlers, errHandlers *middleware.ErrorHandlers) petstore2.ServerInterface {
 	strict := petstore.NewCompositeHandlers(default_, pets)
-	strictMiddlewares := []petstore2.StrictMiddlewareFunc{func(next petstore2.StrictHandlerFunc, operationID string) petstore2.StrictHandlerFunc {
-		return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-			ctx = observability.WithOperation(ctx, operationID)
-			return next(ctx, w, r, request)
-		}
-	}}
+	strictMiddlewares := []petstore2.StrictMiddlewareFunc{middleware.OperationContext()}
 	return petstore2.NewStrictHandlerWithOptions(strict, strictMiddlewares, petstore2.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,

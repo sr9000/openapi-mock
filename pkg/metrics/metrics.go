@@ -14,14 +14,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// Metrics holds all Prometheus metrics for gRPC mock server
+// Metrics holds all Prometheus metrics for the HTTP mock server.
 type Metrics struct {
-	// gRPC metrics
-	RequestsTotal   *prometheus.CounterVec
-	RequestDuration *prometheus.HistogramVec
-	ErrorsTotal     *prometheus.CounterVec
-	PanicsTotal     *prometheus.CounterVec
-
 	// HTTP metrics
 	HTTPRequestsTotal   *prometheus.CounterVec
 	HTTPRequestDuration *prometheus.HistogramVec
@@ -101,30 +95,6 @@ func NewHTTP(port string) *Metrics {
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
 	return m
-}
-
-// RecordRequest records a gRPC request with its duration and status
-func (m *Metrics) RecordRequest(method string, durationMs int64, status string) {
-	m.RequestsTotal.WithLabelValues(method, status).Inc()
-	m.RequestDuration.WithLabelValues(method, status).Observe(float64(durationMs) / 1000.0)
-}
-
-// RecordError records a gRPC error
-func (m *Metrics) RecordError(method, errorMsg string) {
-	// Truncate error message to prevent high cardinality
-	if len(errorMsg) > 100 {
-		errorMsg = errorMsg[:100] + "..."
-	}
-	m.ErrorsTotal.WithLabelValues(method, errorMsg).Inc()
-}
-
-// RecordPanic records a gRPC panic
-func (m *Metrics) RecordPanic(method, panicMsg string) {
-	// Truncate panic message to prevent high cardinality
-	if len(panicMsg) > 100 {
-		panicMsg = panicMsg[:100] + "..."
-	}
-	m.PanicsTotal.WithLabelValues(method, panicMsg).Inc()
 }
 
 // RecordHTTPRequest records an HTTP request with its duration and status code

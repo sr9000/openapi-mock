@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +15,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"openapi-mock/pkg/ctxkeys"
 	"openapi-mock/pkg/metrics"
 	"openapi-mock/pkg/observability"
 	"openapi-mock/pkg/recorder"
@@ -39,12 +37,12 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 }
 
 type RecordingOptions struct {
-	EnableLogging          bool
-	RequestIDHeaders       []string
+	EnableLogging           bool
+	RequestIDHeaders        []string
 	RequestIDResponseHeader string
-	BaseLogger             zerolog.Logger
-	Tracer                 trace.Tracer
-	OperationResolver      OperationResolver
+	BaseLogger              zerolog.Logger
+	Tracer                  trace.Tracer
+	OperationResolver       OperationResolver
 }
 
 func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions) func(http.Handler) http.Handler {
@@ -76,7 +74,6 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 			metadata := observability.EnsureRequestMetadata(r.Context())
 			ctx := observability.WithRequestMetadata(r.Context(), metadata)
 			ctx = observability.WithRequestID(ctx, reqID)
-			ctx = context.WithValue(ctx, ctxkeys.RequestID{}, reqID)
 			ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header))
 			ctx, span := opts.Tracer.Start(ctx, r.Method+" "+r.URL.Path, trace.WithSpanKind(trace.SpanKindServer))
 			defer span.End()

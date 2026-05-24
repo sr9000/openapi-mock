@@ -11,11 +11,10 @@ import (
 )
 
 type LogConfig struct {
-	Enabled bool
-	Format  string
-	Output  string
-	File    string
-	Level   string
+	Format string
+	Output string
+	File   string
+	Level  string
 }
 
 func NewLogger(cfg LogConfig) (zerolog.Logger, io.Closer, error) {

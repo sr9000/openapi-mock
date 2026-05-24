@@ -25,14 +25,12 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	fmt.Fprintf(&buf, "package app\n\n")
 
 	fmt.Fprintf(&buf, "import (\n")
-	fmt.Fprintf(&buf, "\t\"context\"\n")
 	fmt.Fprintf(&buf, "\t\"net/http\"\n\n")
 	fmt.Fprintf(&buf, "\t\"github.com/go-chi/chi/v5\"\n")
 	fmt.Fprintf(&buf, "\t\"github.com/google/wire\"\n\n")
 
 	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/metrics\"\n")
 	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/middleware\"\n")
-	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/observability\"\n")
 
 	// Import all generated packages first, then stubs
 	type specImport struct {
@@ -110,12 +108,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		params = append(params, "errHandlers *middleware.ErrorHandlers")
 		fmt.Fprintf(&buf, "%s) %s.ServerInterface {\n", strings.Join(params, ", "), imp.GenAlias)
 		fmt.Fprintf(&buf, "\tstrict := %s.NewCompositeHandlers(%s)\n", imp.StubAlias, extractFieldNames(handlerParams))
-		fmt.Fprintf(&buf, "\tstrictMiddlewares := []%s.StrictMiddlewareFunc{func(next %s.StrictHandlerFunc, operationID string) %s.StrictHandlerFunc {\n", imp.GenAlias, imp.GenAlias, imp.GenAlias)
-		fmt.Fprintf(&buf, "\t\treturn func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {\n")
-		fmt.Fprintf(&buf, "\t\t\tctx = observability.WithOperation(ctx, operationID)\n")
-		fmt.Fprintf(&buf, "\t\t\treturn next(ctx, w, r, request)\n")
-		fmt.Fprintf(&buf, "\t\t}\n")
-		fmt.Fprintf(&buf, "\t}}\n")
+		fmt.Fprintf(&buf, "\tstrictMiddlewares := []%s.StrictMiddlewareFunc{middleware.OperationContext()}\n", imp.GenAlias)
 		fmt.Fprintf(&buf, "\treturn %s.NewStrictHandlerWithOptions(strict, strictMiddlewares, %s.StrictHTTPServerOptions{\n", imp.GenAlias, imp.GenAlias)
 		fmt.Fprintf(&buf, "\t\tRequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,\n")
 		fmt.Fprintf(&buf, "\t\tResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,\n")

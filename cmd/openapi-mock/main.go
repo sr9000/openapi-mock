@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -32,7 +31,7 @@ type Config struct {
 	EnableMetrics bool   `env:"METRICS_ENABLED" envDefault:"true"`
 	EnableLogging bool   `env:"HTTP_LOGGING" envDefault:"true"`
 
-	RequestIDHeaders       string `env:"REQUEST_ID_HEADERS" envDefault:"X-Request-ID,X-Request-Id,X-Correlation-ID"`
+	RequestIDHeaders        string `env:"REQUEST_ID_HEADERS" envDefault:"X-Request-ID,X-Request-Id,X-Correlation-ID"`
 	RequestIDResponseHeader string `env:"REQUEST_ID_RESPONSE_HEADER" envDefault:"X-Request-ID"`
 
 	LogFormat string `env:"LOG_FORMAT" envDefault:"json"`
@@ -133,21 +132,22 @@ func runServer(cfg Config) error {
 	rec := recorder.New()
 
 	var m *metrics.Metrics
+	var mgmtServer *mgmt.Server
 	if cfg.EnableMetrics {
 		m = metrics.NewHTTP(cfg.MetricsPort)
 		_ = m.Start()
 	}
 
 	if cfg.EnableMgmt {
-		_ = mgmt.New(rec, cfg.MgmtPort).Start()
+		mgmtServer = mgmt.New(rec, cfg.MgmtPort)
+		_ = mgmtServer.Start()
 	}
 
 	baseLogger, logCloser, err := observability.NewLogger(observability.LogConfig{
-		Enabled: cfg.EnableLogging,
-		Format:  cfg.LogFormat,
-		Output:  cfg.LogOutput,
-		File:    cfg.LogFile,
-		Level:   cfg.LogLevel,
+		Format: cfg.LogFormat,
+		Output: cfg.LogOutput,
+		File:   cfg.LogFile,
+		Level:  cfg.LogLevel,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
@@ -177,7 +177,7 @@ func runServer(cfg Config) error {
 	middlewares := []func(http.Handler) http.Handler{
 		middleware.Recording(rec, m, middleware.RecordingOptions{
 			EnableLogging:           cfg.EnableLogging,
-			RequestIDHeaders:        splitCSV(cfg.RequestIDHeaders),
+			RequestIDHeaders:        observability.NormalizeHeaderList(cfg.RequestIDHeaders, []string{"X-Request-ID", "X-Request-Id", "X-Correlation-ID"}),
 			RequestIDResponseHeader: cfg.RequestIDResponseHeader,
 			BaseLogger:              baseLogger,
 		}),
@@ -204,17 +204,11 @@ func runServer(cfg Config) error {
 	log.Println("Shutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return server.Shutdown(ctx)
-}
-
-func splitCSV(s string) []string {
-	parts := strings.Split(s, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
+	if mgmtServer != nil {
+		_ = mgmtServer.Stop(ctx)
 	}
-	return out
+	if m != nil {
+		_ = m.Stop(ctx)
+	}
+	return server.Shutdown(ctx)
 }
