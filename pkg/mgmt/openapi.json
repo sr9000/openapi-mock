@@ -29,6 +29,33 @@
       }
     },
     "/doc": {"get": {"responses": {"200": {"description": "OK"}}}},
+    "/docs": {
+      "get": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MockDocsList"}}}}}}
+    },
+    "/docs/{api_name}": {
+      "get": {
+        "parameters": [{"name": "api_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"text/html": {"schema": {"type": "string"}}, "application/json": {"schema": {"$ref": "#/components/schemas/MockDocsVersions"}}}}, "404": {"description": "Not found"}}
+      }
+    },
+    "/docs/{api_name}/openapi.json": {
+      "get": {
+        "parameters": [{"name": "api_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}}, "404": {"description": "Not found"}}
+      }
+    },
+    "/docs/{api_name}/{api_ver}": {
+      "get": {
+        "parameters": [{"name": "api_name", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "api_ver", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"text/html": {"schema": {"type": "string"}}}}, "404": {"description": "Not found"}}
+      }
+    },
+    "/docs/{api_name}/{api_ver}/openapi.json": {
+      "get": {
+        "parameters": [{"name": "api_name", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "api_ver", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}}, "404": {"description": "Not found"}}
+      }
+    },
     "/openapi.json": {"get": {"responses": {"200": {"description": "OK"}}}}
   },
   "components": {
@@ -48,6 +75,18 @@
       },
       "ContextValueObject": {"type": "object", "additionalProperties": true},
       "ContextValuesStore": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/ContextValueObject"}},
+      "MockDocInfo": {
+        "type": "object",
+        "properties": {
+          "api_name": {"type": "string"},
+          "api_ver": {"type": "string"},
+          "title": {"type": "string"},
+          "ui_url": {"type": "string"},
+          "openapi_url": {"type": "string"}
+        }
+      },
+      "MockDocsList": {"type": "object", "properties": {"items": {"type": "array", "items": {"$ref": "#/components/schemas/MockDocInfo"}}}},
+      "MockDocsVersions": {"type": "object", "properties": {"api_name": {"type": "string"}, "versions": {"type": "array", "items": {"$ref": "#/components/schemas/MockDocInfo"}}}},
       "StatusResponse": {"type": "object", "properties": {"status": {"type": "string"}}}
     }
   }

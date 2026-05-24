@@ -263,6 +263,11 @@ make compose-up
 | `PUT/PATCH` | `/context-values/{request_id}` | Замена/обновление values для request id            |
 | `DELETE`    | `/context-values/{request_id}` | Удалить values для request id                      |
 | `GET`       | `/doc`                         | Интерактивная страница Swagger UI                  |
+| `GET`       | `/docs`                        | Список OpenAPI-документов моков                    |
+| `GET`       | `/docs/{api_name}`             | Swagger UI для API или индекс версий               |
+| `GET`       | `/docs/{api_name}/openapi.json` | OpenAPI JSON для API (если версия однозначна)    |
+| `GET`       | `/docs/{api_name}/{api_ver}`   | Swagger UI для конкретной версии API               |
+| `GET`       | `/docs/{api_name}/{api_ver}/openapi.json` | OpenAPI JSON для версии API            |
 | `GET`       | `/openapi.json`                | Спецификация OpenAPI в формате JSON                |
 | `GET`       | `/metrics`                     | Метрики Prometheus (RPS, тайминги, ошибки)         |
 
@@ -313,6 +318,18 @@ curl -X PATCH http://localhost:9000/context-values/case-a \
 curl -X DELETE http://localhost:9000/context-values/case-a \
   -H 'Content-Type: application/json' \
   -d '{"keys":["low"]}'
+
+# Список доступных OpenAPI-доков моков
+curl http://localhost:9000/docs
+
+# Swagger UI для API (или индекс версий)
+curl http://localhost:9000/docs/petstore
+
+# OpenAPI JSON для API
+curl http://localhost:9000/docs/petstore/openapi.json
+
+# OpenAPI JSON для конкретной версии
+curl http://localhost:9000/docs/echo/v1/openapi.json
 # Открыть Swagger UI в браузере
 open http://localhost:9000/doc
 ```

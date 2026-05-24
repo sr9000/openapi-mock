@@ -124,6 +124,42 @@ func TestGenerateOpenAPIWireFile_UsesMatchingSpecAfterSorting(t *testing.T) {
 	}
 }
 
+func TestGenerateMockDocsFile(t *testing.T) {
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, "internal", "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	specs := []*openapiSpec{
+		{RelPath: "petstore", GenPkgPath: "openapi-mock/internal/generated/petstore", Doc: &openapi3.T{Info: &openapi3.Info{Title: "Petstore"}}},
+		{RelPath: "echo/v1", GenPkgPath: "openapi-mock/internal/generated/echo/v1", Doc: &openapi3.T{Info: &openapi3.Info{Title: "Echo V1"}}},
+	}
+
+	if err := generateMockDocsFile(specs); err != nil {
+		t.Fatalf("generateMockDocsFile() error = %v", err)
+	}
+
+	out, err := os.ReadFile(filepath.Join(tmp, "internal", "app", "mock_docs_gen.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(out)
+	if !strings.Contains(content, "func MockDocs() []mgmt.MockDoc") {
+		t.Fatalf("expected MockDocs function in generated file")
+	}
+	if !strings.Contains(content, "APIName:") || !strings.Contains(content, "\"echo\"") || !strings.Contains(content, "APIVersion:") || !strings.Contains(content, "\"v1\"") {
+		t.Fatalf("expected versioned api metadata in generated file")
+	}
+}
+
 func TestDiscoverOpenAPISpecs_NoSpecsDir(t *testing.T) {
 	origWD, err := os.Getwd()
 	if err != nil {

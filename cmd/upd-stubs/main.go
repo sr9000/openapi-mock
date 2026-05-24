@@ -58,6 +58,9 @@ func run() error {
 	if err := generateOpenAPIWireFile(processed); err != nil {
 		joined = errors.Join(joined, err)
 	}
+	if err := generateMockDocsFile(processed); err != nil {
+		joined = errors.Join(joined, err)
+	}
 
 	if joined == nil {
 		log.Printf("OpenAPI stubs generated successfully for %d spec(s)", len(processed))

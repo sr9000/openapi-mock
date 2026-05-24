@@ -4,9 +4,11 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -55,18 +57,20 @@ const swaggerUIHTML = `<!DOCTYPE html>
 type Server struct {
 	recorder      *recorder.Recorder
 	contextValues *mm.Store
+	mockDocs      *mockDocsIndex
 	server        *http.Server
 	port          string
 }
 
 // New creates a new management server
-func New(rec *recorder.Recorder, contextValues *mm.Store, port string) *Server {
+func New(rec *recorder.Recorder, contextValues *mm.Store, port string, docs []MockDoc) *Server {
 	if contextValues == nil {
 		contextValues = mm.NewStore()
 	}
 	return &Server{
 		recorder:      rec,
 		contextValues: contextValues,
+		mockDocs:      newMockDocsIndex(docs),
 		port:          port,
 	}
 }
@@ -106,6 +110,11 @@ func (s *Server) router() http.Handler {
 	r.Delete("/context-values/{request_id}", s.handleDeleteContextValuesByRequestID)
 
 	r.Get("/doc", s.handleDoc)
+	r.Get("/docs", s.handleDocs)
+	r.Get("/docs/{api_name}", s.handleDocsAPI)
+	r.Get("/docs/{api_name}/openapi.json", s.handleDocsAPIOpenAPI)
+	r.Get("/docs/{api_name}/{api_ver}", s.handleDocsAPIVersion)
+	r.Get("/docs/{api_name}/{api_ver}/openapi.json", s.handleDocsAPIVersionOpenAPI)
 	r.Get("/openapi.json", s.handleOpenAPI)
 	r.Get("/swagger-ui-bundle.js", s.handleSwaggerUIBundle)
 	r.Get("/swagger-ui.css", s.handleSwaggerUICSS)
@@ -239,7 +248,117 @@ func (s *Server) handleDeleteContextValuesByRequestID(w http.ResponseWriter, r *
 // handleDoc serves the interactive Swagger UI page
 func (s *Server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(swaggerUIHTML))
+	_, _ = w.Write([]byte(renderSwaggerUIHTML("/openapi.json", "OpenAPI Mock Management API")))
+}
+
+func (s *Server) handleDocs(w http.ResponseWriter, _ *http.Request) {
+	type item struct {
+		APIName    string `json:"api_name"`
+		APIVersion string `json:"api_ver,omitempty"`
+		Title      string `json:"title,omitempty"`
+		UIURL      string `json:"ui_url"`
+		OpenAPIURL string `json:"openapi_url"`
+	}
+	items := make([]item, 0)
+	for _, d := range s.mockDocs.list() {
+		uiPath := fmt.Sprintf("/docs/%s", d.APIName)
+		openapiPath := fmt.Sprintf("/docs/%s/openapi.json", d.APIName)
+		if d.APIVersion != "" {
+			uiPath = fmt.Sprintf("/docs/%s/%s", d.APIName, d.APIVersion)
+			openapiPath = fmt.Sprintf("/docs/%s/%s/openapi.json", d.APIName, d.APIVersion)
+		}
+		items = append(items, item{
+			APIName:    d.APIName,
+			APIVersion: d.APIVersion,
+			Title:      d.Title,
+			UIURL:      uiPath,
+			OpenAPIURL: openapiPath,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *Server) handleDocsAPI(w http.ResponseWriter, r *http.Request) {
+	apiName := chi.URLParam(r, "api_name")
+	doc, ok, versions, ambiguous := s.mockDocs.resolve(apiName)
+	if !ok {
+		if ambiguous {
+			type versionItem struct {
+				APIName    string `json:"api_name"`
+				APIVersion string `json:"api_ver,omitempty"`
+				Title      string `json:"title,omitempty"`
+				UIURL      string `json:"ui_url"`
+				OpenAPIURL string `json:"openapi_url"`
+			}
+			items := make([]versionItem, 0, len(versions))
+			for _, v := range versions {
+				items = append(items, versionItem{
+					APIName:    v.APIName,
+					APIVersion: v.APIVersion,
+					Title:      v.Title,
+					UIURL:      fmt.Sprintf("/docs/%s/%s", v.APIName, v.APIVersion),
+					OpenAPIURL: fmt.Sprintf("/docs/%s/%s/openapi.json", v.APIName, v.APIVersion),
+				})
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"api_name": apiName, "versions": items})
+			return
+		}
+		writeUIError(w, http.StatusNotFound, fmt.Sprintf("API %q not found", apiName))
+		return
+	}
+	s.handleDocUI(w, r, apiName, doc.APIVersion)
+}
+
+func (s *Server) handleDocsAPIOpenAPI(w http.ResponseWriter, r *http.Request) {
+	apiName := chi.URLParam(r, "api_name")
+	doc, ok, _, _ := s.mockDocs.resolve(apiName)
+	if !ok {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("openapi for %q not found or ambiguous", apiName))
+		return
+	}
+	s.writeMockOpenAPI(w, doc)
+}
+
+func (s *Server) handleDocsAPIVersion(w http.ResponseWriter, r *http.Request) {
+	apiName := chi.URLParam(r, "api_name")
+	apiVer := chi.URLParam(r, "api_ver")
+	if _, ok := s.mockDocs.find(apiName, apiVer); !ok {
+		writeUIError(w, http.StatusNotFound, fmt.Sprintf("API %q version %q not found", apiName, apiVer))
+		return
+	}
+	s.handleDocUI(w, r, apiName, apiVer)
+}
+
+func (s *Server) handleDocsAPIVersionOpenAPI(w http.ResponseWriter, r *http.Request) {
+	apiName := chi.URLParam(r, "api_name")
+	apiVer := chi.URLParam(r, "api_ver")
+	doc, ok := s.mockDocs.find(apiName, apiVer)
+	if !ok {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("openapi for %q version %q not found", apiName, apiVer))
+		return
+	}
+	s.writeMockOpenAPI(w, doc)
+}
+
+func (s *Server) handleDocUI(w http.ResponseWriter, _ *http.Request, apiName, apiVer string) {
+	specPath := fmt.Sprintf("/docs/%s/openapi.json", apiName)
+	title := fmt.Sprintf("OpenAPI Mock %s", apiName)
+	if apiVer != "" {
+		specPath = fmt.Sprintf("/docs/%s/%s/openapi.json", apiName, apiVer)
+		title = fmt.Sprintf("OpenAPI Mock %s %s", apiName, apiVer)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(renderSwaggerUIHTML(specPath, title)))
+}
+
+func (s *Server) writeMockOpenAPI(w http.ResponseWriter, doc MockDoc) {
+	data, err := doc.SpecJSON()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to render openapi")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(data)
 }
 
 // handleOpenAPI returns the OpenAPI specification JSON
@@ -298,4 +417,16 @@ func writeJSON(w http.ResponseWriter, status int, payload any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func writeUIError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = fmt.Fprintf(w, "<!DOCTYPE html><html><body><h1>%d</h1><p>%s</p></body></html>", status, message)
+}
+
+func renderSwaggerUIHTML(specURL, title string) string {
+	html := strings.ReplaceAll(swaggerUIHTML, "OpenAPI Mock Management API", title)
+	html = strings.ReplaceAll(html, "\"/openapi.json\"", fmt.Sprintf("%q", specURL))
+	return html
 }

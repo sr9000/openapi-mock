@@ -17,10 +17,11 @@ func TestLogsRoutes(t *testing.T) {
 	rec := recorder.New()
 	rec.Record(recorder.CallRecord{RequestID: "id-1", Method: "GET /a", Timestamp: time.Now()})
 	rec.Record(recorder.CallRecord{RequestID: "id-2", Method: "GET /b", Timestamp: time.Now()})
-	s := New(rec, mm.NewStore(), "9000")
+	s := New(rec, mm.NewStore(), "9000", nil)
 	h := s.router()
 
 	getReq := httptest.NewRequest(http.MethodGet, "/logs", nil)
+
 	getRes := httptest.NewRecorder()
 	h.ServeHTTP(getRes, getReq)
 	if getRes.Code != http.StatusOK {
@@ -54,7 +55,7 @@ func TestLogsRoutes(t *testing.T) {
 
 func TestContextValuesCollectionEndpoints(t *testing.T) {
 	store := mm.NewStore()
-	s := New(recorder.New(), store, "9000")
+	s := New(recorder.New(), store, "9000", nil)
 	h := s.router()
 
 	put := httptest.NewRequest(http.MethodPut, "/context-values", strings.NewReader(`{"case-a":{"low":10},"case-b":{"high":20.5}}`))
@@ -89,7 +90,7 @@ func TestContextValuesCollectionEndpoints(t *testing.T) {
 
 func TestContextValuesRequestIDEndpoints(t *testing.T) {
 	store := mm.NewStore()
-	s := New(recorder.New(), store, "9000")
+	s := New(recorder.New(), store, "9000", nil)
 	h := s.router()
 
 	put := httptest.NewRequest(http.MethodPut, "/context-values/case-a", strings.NewReader(`{"low":10,"high":20}`))
@@ -128,7 +129,7 @@ func TestContextValuesRequestIDEndpoints(t *testing.T) {
 }
 
 func TestContextValuesInvalidJSONAndUnknownRequestID(t *testing.T) {
-	s := New(recorder.New(), mm.NewStore(), "9000")
+	s := New(recorder.New(), mm.NewStore(), "9000", nil)
 	h := s.router()
 
 	bad := httptest.NewRequest(http.MethodPut, "/context-values/case-a", strings.NewReader("{"))
@@ -147,7 +148,7 @@ func TestContextValuesInvalidJSONAndUnknownRequestID(t *testing.T) {
 }
 
 func TestManagementRouteMethodsAndDocs(t *testing.T) {
-	s := New(recorder.New(), mm.NewStore(), "9000")
+	s := New(recorder.New(), mm.NewStore(), "9000", nil)
 	h := s.router()
 
 	req405 := httptest.NewRequest(http.MethodPost, "/context-values", nil)
@@ -184,5 +185,56 @@ func TestManagementRouteMethodsAndDocs(t *testing.T) {
 	var spec map[string]any
 	if err := json.Unmarshal(body, &spec); err != nil {
 		t.Fatalf("invalid openapi json: %v", err)
+	}
+}
+
+func TestMockDocsRoutes(t *testing.T) {
+	s := New(recorder.New(), mm.NewStore(), "9000", []MockDoc{
+		{APIName: "petstore", Title: "Petstore", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Petstore"}}`), nil }},
+		{APIName: "echo", APIVersion: "v2", Title: "Echo v2", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Echo v2"}}`), nil }},
+		{APIName: "echo", APIVersion: "v3", Title: "Echo v3", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Echo v3"}}`), nil }},
+	})
+	h := s.router()
+
+	listReq := httptest.NewRequest(http.MethodGet, "/docs", nil)
+	listRes := httptest.NewRecorder()
+	h.ServeHTTP(listRes, listReq)
+	if listRes.Code != http.StatusOK || !strings.Contains(listRes.Body.String(), "petstore") {
+		t.Fatalf("unexpected /docs response: status=%d body=%q", listRes.Code, listRes.Body.String())
+	}
+
+	petReq := httptest.NewRequest(http.MethodGet, "/docs/petstore", nil)
+	petRes := httptest.NewRecorder()
+	h.ServeHTTP(petRes, petReq)
+	if petRes.Code != http.StatusOK || !strings.Contains(petRes.Body.String(), "/docs/petstore/openapi.json") {
+		t.Fatalf("unexpected /docs/petstore response: status=%d body=%q", petRes.Code, petRes.Body.String())
+	}
+
+	ambReq := httptest.NewRequest(http.MethodGet, "/docs/echo", nil)
+	ambRes := httptest.NewRecorder()
+	h.ServeHTTP(ambRes, ambReq)
+	if ambRes.Code != http.StatusOK || !strings.Contains(ambRes.Body.String(), `"api_ver":"v2"`) {
+		t.Fatalf("unexpected ambiguous response: status=%d body=%q", ambRes.Code, ambRes.Body.String())
+	}
+
+	jsonReq := httptest.NewRequest(http.MethodGet, "/docs/petstore/openapi.json", nil)
+	jsonRes := httptest.NewRecorder()
+	h.ServeHTTP(jsonRes, jsonReq)
+	if jsonRes.Code != http.StatusOK || !strings.Contains(jsonRes.Body.String(), "Petstore") {
+		t.Fatalf("unexpected openapi response: status=%d body=%q", jsonRes.Code, jsonRes.Body.String())
+	}
+
+	versionReq := httptest.NewRequest(http.MethodGet, "/docs/echo/v3/openapi.json", nil)
+	versionRes := httptest.NewRecorder()
+	h.ServeHTTP(versionRes, versionReq)
+	if versionRes.Code != http.StatusOK || !strings.Contains(versionRes.Body.String(), "Echo v3") {
+		t.Fatalf("unexpected version openapi response: status=%d body=%q", versionRes.Code, versionRes.Body.String())
+	}
+
+	notFoundReq := httptest.NewRequest(http.MethodGet, "/docs/missing/openapi.json", nil)
+	notFoundRes := httptest.NewRecorder()
+	h.ServeHTTP(notFoundRes, notFoundReq)
+	if notFoundRes.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing docs json, got %d", notFoundRes.Code)
 	}
 }
