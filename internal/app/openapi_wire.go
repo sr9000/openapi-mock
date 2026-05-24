@@ -4,6 +4,7 @@
 package app
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -13,6 +14,7 @@ import (
 	petstoregen1 "openapi-mock/internal/generated/petstore"
 	"openapi-mock/pkg/metrics"
 	"openapi-mock/pkg/middleware"
+	"openapi-mock/pkg/observability"
 
 	echostub0 "openapi-mock/internal/stubs/echo"
 	petstorestub1 "openapi-mock/internal/stubs/petstore"
@@ -28,7 +30,12 @@ type HTTPApp struct {
 
 func provideEchoHandlers(echo *echostub0.EchoHandlers, status *echostub0.StatusHandlers, errHandlers *middleware.ErrorHandlers) echogen0.ServerInterface {
 	strict := echostub0.NewCompositeHandlers(echo, status)
-	strictMiddlewares := []echogen0.StrictMiddlewareFunc{middleware.OperationContext()}
+	strictMiddlewares := []echogen0.StrictMiddlewareFunc{func(next echogen0.StrictHandlerFunc, operationID string) echogen0.StrictHandlerFunc {
+		return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+			ctx = observability.WithOperation(ctx, operationID)
+			return next(ctx, w, r, request)
+		}
+	}}
 	return echogen0.NewStrictHandlerWithOptions(strict, strictMiddlewares, echogen0.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
@@ -37,7 +44,12 @@ func provideEchoHandlers(echo *echostub0.EchoHandlers, status *echostub0.StatusH
 
 func providePetstoreHandlers(default_ *petstorestub1.DefaultHandlers, pets *petstorestub1.PetsHandlers, errHandlers *middleware.ErrorHandlers) petstoregen1.ServerInterface {
 	strict := petstorestub1.NewCompositeHandlers(default_, pets)
-	strictMiddlewares := []petstoregen1.StrictMiddlewareFunc{middleware.OperationContext()}
+	strictMiddlewares := []petstoregen1.StrictMiddlewareFunc{func(next petstoregen1.StrictHandlerFunc, operationID string) petstoregen1.StrictHandlerFunc {
+		return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+			ctx = observability.WithOperation(ctx, operationID)
+			return next(ctx, w, r, request)
+		}
+	}}
 	return petstoregen1.NewStrictHandlerWithOptions(strict, strictMiddlewares, petstoregen1.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,

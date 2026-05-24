@@ -64,6 +64,11 @@ compose-down:
 	@echo "===================="
 	@echo "Stopping full stack..."
 	docker compose -f docker-compose-grafana.yaml down
+compose-smoke:
+	@echo
+	@echo "===================="
+	@echo "Running observability stack smoke test..."
+	./scripts/validate-observability-stack.sh
 # Show help
 help:
 	@echo "Available targets:"
@@ -78,3 +83,4 @@ help:
 	@echo "  compose-up     - Start full stack (Mock + Monitoring)"
 	@echo "  compose-logs   - Follow logs of full stack"
 	@echo "  compose-down   - Stop full stack"
+	@echo "  compose-smoke  - Run automated stack smoke validation"

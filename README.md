@@ -247,6 +247,8 @@ make docker-run
 ```bash
 # Запуск с Prometheus + Grafana + Tempo + Loki + OTel Collector
 make compose-up
+# Автоматическая smoke-проверка всего observability стека
+make compose-smoke
 # Просмотр логов
 make compose-logs
 # Остановка
