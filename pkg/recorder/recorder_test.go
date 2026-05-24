@@ -214,3 +214,21 @@ func TestGetRecordsReturnsCopy(t *testing.T) {
 		t.Error("GetRecords should return a copy, not the original slice")
 	}
 }
+
+func TestGetRecordsByRequestID(t *testing.T) {
+	r := New()
+	r.Record(CallRecord{RequestID: "id-1", Method: "GET /a", Timestamp: time.Now()})
+	r.Record(CallRecord{RequestID: "id-2", Method: "GET /b", Timestamp: time.Now()})
+	r.Record(CallRecord{RequestID: "id-1", Method: "GET /c", Timestamp: time.Now()})
+
+	records := r.GetRecordsByRequestID("id-1")
+	if len(records) != 2 {
+		t.Fatalf("Expected 2 records for id-1, got %d", len(records))
+	}
+
+	for _, record := range records {
+		if record.RequestID != "id-1" {
+			t.Fatalf("Expected only id-1 records, got %q", record.RequestID)
+		}
+	}
+}

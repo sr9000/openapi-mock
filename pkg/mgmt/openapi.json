@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OpenAPI Mock Management API",
-    "description": "Management API for the OpenAPI mock server used in e2e testing. Provides endpoints to retrieve recorded HTTP/OpenAPI calls and clear logs.",
+    "description": "Management API for the OpenAPI mock server used in e2e testing. Provides endpoints to retrieve and clear recorded HTTP/OpenAPI calls.",
     "version": "1.0.0"
   },
   "servers": [
@@ -35,10 +35,8 @@
             "description": "Failed to serialize logs"
           }
         }
-      }
-    },
-    "/clear": {
-      "post": {
+      },
+      "delete": {
         "summary": "Clear all recorded HTTP/OpenAPI calls",
         "description": "Removes all recorded HTTP/OpenAPI calls from memory.",
         "operationId": "clearLogs",
@@ -60,27 +58,40 @@
             }
           }
         }
-      },
-      "delete": {
-        "summary": "Clear all recorded HTTP/OpenAPI calls",
-        "description": "Removes all recorded HTTP/OpenAPI calls from memory.",
-        "operationId": "clearLogsDelete",
+      }
+    },
+    "/logs/{request_id}": {
+      "get": {
+        "summary": "Get recorded HTTP/OpenAPI calls by request id",
+        "description": "Returns only recorded calls that match the provided request id.",
+        "operationId": "getLogsByRequestID",
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Request identifier to filter records"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Successfully cleared logs",
+            "description": "Successfully retrieved filtered logs",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "example": "cleared"
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CallRecord"
                   }
                 }
               }
             }
+          },
+          "500": {
+            "description": "Failed to serialize logs"
           }
         }
       }

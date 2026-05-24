@@ -236,7 +236,8 @@ make compose-up
 | Метод           | Путь            | Описание                                           |
 |:----------------|:----------------|:---------------------------------------------------|
 | `GET`           | `/logs`         | Получить все записанные HTTP-вызовы в формате JSON |
-| `POST`/`DELETE` | `/clear`        | Очистить все записи                                |
+| `GET`           | `/logs/{request_id}` | Получить записи только для конкретного request id |
+| `DELETE`        | `/logs`         | Очистить все записи                                |
 | `GET`           | `/doc`          | Интерактивная страница Swagger UI                  |
 | `GET`           | `/openapi.json` | Спецификация OpenAPI в формате JSON                |
 | `GET`           | `/metrics`      | Метрики Prometheus (RPS, тайминги, ошибки)         |
@@ -266,8 +267,10 @@ make compose-up
 ```bash
 # Получить все записанные вызовы
 curl http://localhost:9000/logs
+# Получить вызовы только для request id
+curl http://localhost:9000/logs/test-id
 # Очистить записи
-curl -X POST http://localhost:9000/clear
+curl -X DELETE http://localhost:9000/logs
 # Открыть Swagger UI в браузере
 open http://localhost:9000/doc
 ```

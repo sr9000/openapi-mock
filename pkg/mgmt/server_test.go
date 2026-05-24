@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"openapi-mock/pkg/recorder"
+	"strings"
 	"testing"
 	"time"
 )
@@ -76,7 +77,7 @@ func TestHandleLogsMethodNotAllowed(t *testing.T) {
 	rec := recorder.New()
 	s := New(rec, "9000")
 
-	methods := []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch}
+	methods := []string{http.MethodPost, http.MethodPut, http.MethodPatch}
 
 	for _, method := range methods {
 		req := httptest.NewRequest(method, "/logs", nil)
@@ -93,7 +94,7 @@ func TestHandleLogsMethodNotAllowed(t *testing.T) {
 	}
 }
 
-func TestHandleClearPost(t *testing.T) {
+func TestHandleLogsDelete(t *testing.T) {
 	rec := recorder.New()
 	rec.Record(recorder.CallRecord{
 		RequestID: "test-id",
@@ -103,10 +104,10 @@ func TestHandleClearPost(t *testing.T) {
 
 	s := New(rec, "9000")
 
-	req := httptest.NewRequest(http.MethodPost, "/clear", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/logs", nil)
 	w := httptest.NewRecorder()
 
-	s.handleClear(w, req)
+	s.handleLogs(w, req)
 
 	resp := w.Result()
 	defer resp.Body.Close()
@@ -130,50 +131,71 @@ func TestHandleClearPost(t *testing.T) {
 	}
 }
 
-func TestHandleClearDelete(t *testing.T) {
+func TestHandleLogsByRequestID(t *testing.T) {
 	rec := recorder.New()
-	rec.Record(recorder.CallRecord{
-		RequestID: "test-id",
-		Method:    "/TestService/TestMethod",
-		Timestamp: time.Now(),
-	})
-
+	rec.Record(recorder.CallRecord{RequestID: "id-1", Method: "GET /a", Timestamp: time.Now()})
+	rec.Record(recorder.CallRecord{RequestID: "id-2", Method: "GET /b", Timestamp: time.Now()})
+	rec.Record(recorder.CallRecord{RequestID: "id-1", Method: "GET /c", Timestamp: time.Now()})
 	s := New(rec, "9000")
 
-	req := httptest.NewRequest(http.MethodDelete, "/clear", nil)
+	req := httptest.NewRequest(http.MethodGet, "/logs/id-1", nil)
 	w := httptest.NewRecorder()
-
-	s.handleClear(w, req)
+	s.handleLogsByRequestID(w, req)
 
 	resp := w.Result()
 	defer resp.Body.Close()
-
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+		t.Fatalf("Expected status 200, got %d", resp.StatusCode)
 	}
 
-	if len(rec.GetRecords()) != 0 {
-		t.Error("Expected records to be cleared")
+	body, _ := io.ReadAll(resp.Body)
+	var records []recorder.CallRecord
+	if err := json.Unmarshal(body, &records); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("Expected 2 records, got %d", len(records))
+	}
+	for _, record := range records {
+		if record.RequestID != "id-1" {
+			t.Fatalf("Expected only id-1 records, got %s", record.RequestID)
+		}
 	}
 }
 
-func TestHandleClearMethodNotAllowed(t *testing.T) {
+func TestHandleLogsByRequestIDNotFound(t *testing.T) {
 	rec := recorder.New()
+
 	s := New(rec, "9000")
+	req := httptest.NewRequest(http.MethodGet, "/logs/", nil)
+	w := httptest.NewRecorder()
+	s.handleLogsByRequestID(w, req)
 
-	methods := []string{http.MethodGet, http.MethodPut, http.MethodPatch}
+	resp := w.Result()
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("Expected status 404, got %d", resp.StatusCode)
+	}
+}
 
-	for _, method := range methods {
+func TestRemovedClearRouteReturnsNotFound(t *testing.T) {
+	rec := recorder.New()
+	s := New(rec, "0")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/logs", s.handleLogs)
+	mux.HandleFunc("/logs/", s.handleLogsByRequestID)
+	mux.HandleFunc("/doc", s.handleDoc)
+	mux.HandleFunc("/openapi.json", s.handleOpenAPI)
+	mux.HandleFunc("/swagger-ui-bundle.js", s.handleSwaggerUIBundle)
+	mux.HandleFunc("/swagger-ui.css", s.handleSwaggerUICSS)
+
+	for _, method := range []string{http.MethodPost, http.MethodDelete} {
 		req := httptest.NewRequest(method, "/clear", nil)
 		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, req)
 
-		s.handleClear(w, req)
-
-		resp := w.Result()
-		resp.Body.Close()
-
-		if resp.StatusCode != http.StatusMethodNotAllowed {
-			t.Errorf("Expected status 405 for %s, got %d", method, resp.StatusCode)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("Expected status 404 for %s /clear, got %d", method, w.Code)
 		}
 	}
 }
@@ -320,14 +342,5 @@ func TestHandleSwaggerUICSS(t *testing.T) {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(s, substr)
 }

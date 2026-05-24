@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"openapi-mock/pkg/recorder"
 )
@@ -66,7 +67,7 @@ func New(rec *recorder.Recorder, port string) *Server {
 func (s *Server) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/logs", s.handleLogs)
-	mux.HandleFunc("/clear", s.handleClear)
+	mux.HandleFunc("/logs/", s.handleLogsByRequestID)
 	mux.HandleFunc("/doc", s.handleDoc)
 	mux.HandleFunc("/openapi.json", s.handleOpenAPI)
 	mux.HandleFunc("/swagger-ui-bundle.js", s.handleSwaggerUIBundle)
@@ -98,8 +99,15 @@ func (s *Server) Stop(ctx context.Context) error {
 
 // handleLogs returns all recorded HTTP/OpenAPI calls as JSON.
 func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if r.Method == http.MethodDelete {
+		s.recorder.Clear()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "cleared"})
 		return
 	}
 
@@ -114,17 +122,27 @@ func (s *Server) handleLogs(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-// handleClear removes all recorded HTTP/OpenAPI calls.
-func (s *Server) handleClear(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost && r.Method != http.MethodDelete {
+// handleLogsByRequestID returns all records for request id from /logs/{request_id}.
+func (s *Server) handleLogsByRequestID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	s.recorder.Clear()
+	requestID := strings.TrimPrefix(r.URL.Path, "/logs/")
+	if requestID == "" || strings.Contains(requestID, "/") {
+		http.NotFound(w, r)
+		return
+	}
+
+	data, err := json.Marshal(s.recorder.GetRecordsByRequestID(requestID))
+	if err != nil {
+		http.Error(w, "failed to serialize logs: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "cleared"})
+	w.Write(data)
 }
 
 // handleDoc serves the interactive Swagger UI page
