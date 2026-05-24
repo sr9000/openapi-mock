@@ -30,7 +30,7 @@ services:
       - app_logs:/var/log/openapi-mock
     restart: unless-stopped
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.53.0
     container_name: openapi-mock-prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yaml'
@@ -42,19 +42,31 @@ services:
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
-      - openapi-mock
+      openapi-mock:
+        condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.102.1
     container_name: openapi-mock-otel-collector
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
       - ./otel/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
     depends_on:
-      - tempo
+      tempo:
+        condition: service_healthy
     ports:
       - "4318:4318"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:13133/"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
   tempo:
     image: grafana/tempo:2.4.1
     container_name: openapi-mock-tempo
@@ -65,8 +77,13 @@ services:
     ports:
       - "3200:3200"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3200/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:2.9.8
     container_name: openapi-mock-loki
     command: ["-config.file=/etc/loki/local-config.yaml"]
     volumes:
@@ -74,17 +91,29 @@ services:
     ports:
       - "3100:3100"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3100/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
   promtail:
-    image: grafana/promtail:latest
+    image: grafana/promtail:2.9.8
     container_name: openapi-mock-promtail
     command: ["-config.file=/etc/promtail/config.yaml"]
     volumes:
       - ./promtail/promtail.yaml:/etc/promtail/config.yaml:ro
       - app_logs:/var/log/openapi-mock:ro
     depends_on:
-      - loki
-      - openapi-mock
+      loki:
+        condition: service_healthy
+      openapi-mock:
+        condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:9080/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
   grafana:
     build:
       context: ./grafana
@@ -96,10 +125,18 @@ services:
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     depends_on:
-      - prometheus
-      - tempo
-      - loki
+      prometheus:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 volumes:
   prometheus_data:
   tempo_data:
