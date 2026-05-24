@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"go/format"
 	"log"
-	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -47,8 +45,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	var wireSpecs []wireSpec
 
 	for i, spec := range specs {
-		aliasBase := strings.ReplaceAll(spec.RelPath, "/", "_")
-		aliasBase = strings.ReplaceAll(aliasBase, "-", "_")
+		aliasBase := sanitizeGoIdentifier(strings.ReplaceAll(spec.RelPath, "/", "_"))
 		stubAlias := fmt.Sprintf("%sstub%d", aliasBase, i)
 		genAlias := fmt.Sprintf("%sgen%d", aliasBase, i)
 		wireSpecs = append(wireSpecs, wireSpec{
@@ -85,7 +82,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		imp := ws.Imp
 		spec := ws.Spec
 		for _, tag := range spec.getSortedTags() {
-			fieldName := toPascalCase(spec.PkgName) + toPascalCase(tag)
+			fieldName := toPascalCase(strings.ReplaceAll(spec.RelPath, "/", "_")) + toPascalCase(tag)
 			structName := getHandlerStructName(tag)
 			fmt.Fprintf(&buf, "\t%s *%s.%s\n", fieldName, imp.StubAlias, structName)
 		}
@@ -167,7 +164,9 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 
 	src, err := format.Source(buf.Bytes())
 	if err != nil {
-		log.Printf("failed to format openapi_wire.go: %v\nSource:\n%s", err, buf.String())
+		if verboseLogs {
+			log.Printf("failed to format openapi_wire.go: %v\nSource:\n%s", err, buf.String())
+		}
 		return err
 	}
 
@@ -176,8 +175,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		return err
 	}
 
-	outPath := filepath.Join("internal", "app", "openapi_wire.go")
-	return os.WriteFile(outPath, src, 0o644)
+	return writeGeneratedFile(openapiWireOut, src)
 }
 
 func extractFieldNames(params []string) string {

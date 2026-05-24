@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go/format"
 	"log"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -59,7 +58,7 @@ func generateOpenAPIProvider(outDir string, spec *openapiSpec) error {
 		ops := spec.Tags[tag]
 
 		for _, op := range ops {
-			methodName := getOperationMethodName(op)
+			methodName := resolveOperationMethodName(spec, op)
 
 			// Strict signature: (context.Context, gen.<Op>RequestObject) (gen.<Op>ResponseObject, error)
 			reqType := fmt.Sprintf("gen.%sRequestObject", methodName)
@@ -73,7 +72,9 @@ func generateOpenAPIProvider(outDir string, spec *openapiSpec) error {
 
 	src, err := format.Source(buf.Bytes())
 	if err != nil {
-		log.Printf("failed to format provider.go: %v\nSource:\n%s", err, buf.String())
+		if verboseLogs {
+			log.Printf("failed to format provider.go: %v\nSource:\n%s", err, buf.String())
+		}
 		return err
 	}
 
@@ -83,12 +84,11 @@ func generateOpenAPIProvider(outDir string, spec *openapiSpec) error {
 	}
 
 	outPath := filepath.Join(outDir, "provider.go")
-	return os.WriteFile(outPath, src, 0o644)
+	return writeGeneratedFile(outPath, src)
 }
 
 func sanitizeFieldName(tag string) string {
-	// Handle reserved words
-	name := toSnakeCase(tag)
+	name := sanitizeGoIdentifier(tag)
 	if name == "default" {
 		return "default_"
 	}

@@ -10,7 +10,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	goimports "golang.org/x/tools/imports"
@@ -80,7 +82,9 @@ func generateOpenAPIStubFile(outDir string, spec *openapiSpec, tag string, ops [
 
 	src, err := format.Source(buf.Bytes())
 	if err != nil {
-		log.Printf("failed to format %s: %v\nSource:\n%s", fileName, err, buf.String())
+		if verboseLogs {
+			log.Printf("failed to format %s: %v\nSource:\n%s", fileName, err, buf.String())
+		}
 		return err
 	}
 
@@ -91,13 +95,13 @@ func generateOpenAPIStubFile(outDir string, spec *openapiSpec, tag string, ops [
 		return err
 	}
 
-	return os.WriteFile(outPath, src, 0o644)
+	return writeGeneratedFile(outPath, src)
 }
 
 func generateOpenAPIMethod(structName string, spec *openapiSpec, op opInfo) string {
 	var buf bytes.Buffer
 
-	methodName := getOperationMethodName(op)
+	methodName := resolveOperationMethodName(spec, op)
 
 	// Strict signature types
 	reqType := fmt.Sprintf("gen.%sRequestObject", methodName)
@@ -171,7 +175,7 @@ func updateOpenAPIStubFile(path string, spec *openapiSpec, tag string, ops []opI
 	// Find missing methods
 	var newMethods []string
 	for _, op := range ops {
-		methodName := getOperationMethodName(op)
+		methodName := resolveOperationMethodName(spec, op)
 		if _, exists := existingMethods[methodName]; !exists {
 			method := generateOpenAPIMethod(structName, spec, op)
 			newMethods = append(newMethods, method)
@@ -179,6 +183,20 @@ func updateOpenAPIStubFile(path string, spec *openapiSpec, tag string, ops []opI
 	}
 
 	if len(newMethods) == 0 {
+		if pruneStale {
+			prunedSrc, changed := annotateOrphanedMethods(spec, existingSrc, existingMethods, ops)
+			if changed {
+				formatted, err := format.Source(prunedSrc)
+				if err != nil {
+					return err
+				}
+				formatted, err = goimports.Process(path, formatted, nil)
+				if err != nil {
+					return err
+				}
+				return writeGeneratedFile(path, formatted)
+			}
+		}
 		return nil // No changes needed
 	}
 
@@ -201,7 +219,62 @@ func updateOpenAPIStubFile(path string, spec *openapiSpec, tag string, ops []opI
 		return err
 	}
 
-	return os.WriteFile(path, src, 0o644)
+	return writeGeneratedFile(path, src)
+}
+
+const (
+	orphanBlockStart = "// upd-stubs: orphaned-methods-start"
+	orphanBlockEnd   = "// upd-stubs: orphaned-methods-end"
+)
+
+func annotateOrphanedMethods(spec *openapiSpec, existingSrc []byte, existingMethods map[string]bool, ops []opInfo) ([]byte, bool) {
+	expected := map[string]bool{}
+	for _, op := range ops {
+		expected[resolveOperationMethodName(spec, op)] = true
+	}
+
+	orphaned := make([]string, 0)
+	for method := range existingMethods {
+		if !expected[method] {
+			orphaned = append(orphaned, method)
+		}
+	}
+	sort.Strings(orphaned)
+
+	original := string(existingSrc)
+	updated := removeOrphanBlock(original)
+	if len(orphaned) == 0 {
+		return []byte(updated), updated != original
+	}
+
+	var block strings.Builder
+	block.WriteString("\n")
+	block.WriteString(orphanBlockStart)
+	block.WriteString("\n")
+	block.WriteString("// Methods listed below exist in this file but are no longer declared in the current OpenAPI spec.\n")
+	for _, method := range orphaned {
+		block.WriteString("// - ")
+		block.WriteString(method)
+		block.WriteString("\n")
+	}
+	block.WriteString(orphanBlockEnd)
+	block.WriteString("\n")
+
+	updated = strings.TrimRight(updated, "\n") + block.String()
+	return []byte(updated), updated != original
+}
+
+func removeOrphanBlock(src string) string {
+	start := strings.Index(src, orphanBlockStart)
+	if start < 0 {
+		return src
+	}
+	end := strings.Index(src[start:], orphanBlockEnd)
+	if end < 0 {
+		return src
+	}
+	end += start + len(orphanBlockEnd)
+	return strings.TrimRight(src[:start]+src[end:], "\n") + "\n"
 }
 
 func parseExistingMethods(src []byte, structName string) map[string]bool {

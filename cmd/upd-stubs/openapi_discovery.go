@@ -29,6 +29,7 @@ type openapiSpec struct {
 	PkgName     string              // Package name (e.g., "petstore")
 	GenPkgPath  string              // Generated package import path
 	StubPkgPath string              // Stubs package import path
+	StrictNames map[string]bool     // StrictServerInterface method names
 	Doc         *openapi3.T         // Parsed OpenAPI document
 	Tags        map[string][]opInfo // Operations grouped by tag
 }
@@ -97,7 +98,7 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 		relPath = filepath.Base(specsDir)
 	}
 
-	pkgName := strings.ReplaceAll(filepath.Base(relPath), "-", "_")
+	pkgName := sanitizeGoPackageName(filepath.Base(relPath))
 
 	spec := &openapiSpec{
 		SpecPath:    path,
@@ -105,6 +106,7 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 		PkgName:     pkgName,
 		GenPkgPath:  fmt.Sprintf("%s/%s/%s", openapiModulePfx, openapiGenDir, relPath),
 		StubPkgPath: fmt.Sprintf("%s/%s/%s", openapiModulePfx, openapiStubsDir, relPath),
+		StrictNames: make(map[string]bool),
 		Doc:         doc,
 		Tags:        make(map[string][]opInfo),
 	}
@@ -131,9 +133,11 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 	// Determine operation order from StrictServerInterface in generated server code.
 	// This ensures that generated stubs match the interface order (e.g. methods are sorted).
 	serverGenPath := filepath.Join(openapiGenDir, relPath, "server.gen.go")
-	opOrder, err := getMethodOrderFromInterface(serverGenPath, "StrictServerInterface")
+	opOrder, strictNames, err := getMethodOrderFromInterface(serverGenPath, "StrictServerInterface")
 	if err != nil {
 		log.Printf("warning: failed to read %s for method ordering: %v", serverGenPath, err)
+	} else {
+		spec.StrictNames = strictNames
 	}
 
 	// Sort operations within each tag
@@ -145,8 +149,8 @@ func loadOpenAPISpec(path string) (*openapiSpec, error) {
 			// We try to match the operation ID (normalized if needed).
 			// If OperationID is empty (not common with strict mode), we might fall back.
 			// Ideally, oapi-codegen uses OperationID as function name.
-			id1 := getOperationMethodName(op1)
-			id2 := getOperationMethodName(op2)
+			id1 := resolveOperationMethodName(spec, op1)
+			id2 := resolveOperationMethodName(spec, op2)
 
 			idx1, ok1 := opOrder[id1]
 			idx2, ok2 := opOrder[id2]
@@ -180,8 +184,7 @@ func primaryTag(tags []string) string {
 }
 
 func normalizeTagName(tag string) string {
-	tag = strings.TrimSpace(strings.ToLower(tag))
-	tag = strings.ReplaceAll(tag, " ", "_")
+	tag = sanitizeGoIdentifier(strings.TrimSpace(tag))
 	if tag == "" {
 		return "default"
 	}
@@ -193,6 +196,20 @@ func getOperationMethodName(op opInfo) string {
 		return toPascalCase(op.OperationID)
 	}
 	return toPascalCase(op.Method + "_" + strings.ReplaceAll(op.Path, "/", "_"))
+}
+
+func resolveOperationMethodName(spec *openapiSpec, op opInfo) string {
+	methodName := getOperationMethodName(op)
+	if len(spec.StrictNames) == 0 || spec.StrictNames[methodName] {
+		return methodName
+	}
+	methodNorm := strings.ToLower(strings.ReplaceAll(methodName, "_", ""))
+	for strictName := range spec.StrictNames {
+		if strings.ToLower(strings.ReplaceAll(strictName, "_", "")) == methodNorm {
+			return strictName
+		}
+	}
+	return methodName
 }
 
 // getSortedTags returns tag names sorted alphabetically
@@ -215,14 +232,15 @@ func getNewHandlerFuncName(tag string) string {
 	return "New" + toPascalCase(tag) + "Handlers"
 }
 
-func getMethodOrderFromInterface(filePath string, interfaceName string) (map[string]int, error) {
+func getMethodOrderFromInterface(filePath string, interfaceName string) (map[string]int, map[string]bool, error) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	order := make(map[string]int)
+	names := make(map[string]bool)
 	counter := 0
 
 	ast.Inspect(node, func(n ast.Node) bool {
@@ -243,11 +261,12 @@ func getMethodOrderFromInterface(filePath string, interfaceName string) (map[str
 			if len(method.Names) > 0 {
 				methodName := method.Names[0].Name
 				order[methodName] = counter
+				names[methodName] = true
 				counter++
 			}
 		}
 		return false
 	})
 
-	return order, nil
+	return order, names, nil
 }

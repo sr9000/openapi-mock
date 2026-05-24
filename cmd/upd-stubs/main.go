@@ -7,10 +7,21 @@ import (
 	"os"
 )
 
+var (
+	openapiWireOut = "internal/app/openapi_wire.go"
+	dryRun         bool
+	pruneStale     bool
+	verboseLogs    bool
+)
+
 func main() {
 	flag.StringVar(&specsDir, "specs-dir", specsDir, "Path to directory with OpenAPI specs")
 	flag.StringVar(&openapiGenDir, "generated-dir", openapiGenDir, "Path to generated oapi-codegen packages")
 	flag.StringVar(&openapiStubsDir, "stubs-dir", openapiStubsDir, "Path to output stubs directory")
+	flag.StringVar(&openapiWireOut, "wire-out", openapiWireOut, "Path to generated wire file")
+	flag.BoolVar(&dryRun, "dry-run", false, "Render updates without writing files")
+	flag.BoolVar(&pruneStale, "prune", false, "Annotate stale methods not present in current specs")
+	flag.BoolVar(&verboseLogs, "verbose", false, "Print extra debug logs")
 	flag.Parse()
 
 	if err := run(); err != nil {

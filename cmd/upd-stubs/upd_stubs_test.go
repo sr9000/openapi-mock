@@ -22,6 +22,18 @@ func mustReadTestSource(t *testing.T, relPath string) []byte {
 	return b
 }
 
+func TestSanitizeHelpers(t *testing.T) {
+	if got := toSnakeCase("HTTPHandler"); got != "http_handler" {
+		t.Fatalf("toSnakeCase(HTTPHandler) = %q, want %q", got, "http_handler")
+	}
+	if got := sanitizeGoIdentifier("123 go-value"); got != "v_123_go_value" {
+		t.Fatalf("sanitizeGoIdentifier() = %q, want %q", got, "v_123_go_value")
+	}
+	if got := sanitizeGoPackageName("Func"); got != "func_" {
+		t.Fatalf("sanitizeGoPackageName() = %q, want %q", got, "func_")
+	}
+}
+
 func TestParseExistingMethods_ASTHandlesReceiverRenameAndMultiline(t *testing.T) {
 	src := mustReadTestSource(t, "test_srcs/parse_existing_methods/pets_handlers.go")
 
@@ -133,5 +145,85 @@ func TestDiscoverOpenAPISpecs_NoSpecsDir(t *testing.T) {
 	}
 	if len(specs) != 0 {
 		t.Fatalf("discoverOpenAPISpecs() len = %d, want 0", len(specs))
+	}
+}
+
+func TestLoadOpenAPISpec_PrimaryTagAndSanitizedPackage(t *testing.T) {
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp := t.TempDir()
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	if err := os.MkdirAll(filepath.Join("specs", "123-api"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	specPath := filepath.Join("specs", "123-api", "openapi.yaml")
+
+	content := `openapi: 3.0.3
+info:
+  title: test
+  version: 1.0.0
+paths:
+  /pets:
+    get:
+      operationId: listPets
+      tags: [pets, admin]
+      responses:
+        "200":
+          description: ok
+`
+	if err := os.WriteFile(specPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	spec, err := loadOpenAPISpec(specPath)
+	if err != nil {
+		t.Fatalf("loadOpenAPISpec() error: %v", err)
+	}
+	if spec.PkgName != "v_123_api" {
+		t.Fatalf("spec.PkgName = %q, want %q", spec.PkgName, "v_123_api")
+	}
+	if _, ok := spec.Tags["pets"]; !ok {
+		t.Fatalf("expected primary tag pets to exist")
+	}
+	if _, ok := spec.Tags["admin"]; ok {
+		t.Fatalf("secondary tag should not receive duplicated operation")
+	}
+}
+
+func TestResolveOperationMethodName_UsesStrictNameMatch(t *testing.T) {
+	spec := &openapiSpec{StrictNames: map[string]bool{"ListPetsV2": true}}
+	op := opInfo{OperationID: "list_pets_v2"}
+	if got := resolveOperationMethodName(spec, op); got != "ListPetsV2" {
+		t.Fatalf("resolveOperationMethodName() = %q, want %q", got, "ListPetsV2")
+	}
+}
+
+func TestAnnotateOrphanedMethods(t *testing.T) {
+	src := mustReadTestSource(t, "test_srcs/orphaned_methods/pets_handlers.go")
+	existing := parseExistingMethods(src, "PetsHandlers")
+	spec := &openapiSpec{}
+	ops := []opInfo{{OperationID: "ListPets"}}
+
+	updated, changed := annotateOrphanedMethods(spec, src, existing, ops)
+	if !changed {
+		t.Fatalf("expected orphan annotation change")
+	}
+	text := string(updated)
+	if !strings.Contains(text, orphanBlockStart) || !strings.Contains(text, "DeprecatedPets") {
+		t.Fatalf("expected orphan block with DeprecatedPets, got:\n%s", text)
+	}
+
+	updated2, changed2 := annotateOrphanedMethods(spec, updated, parseExistingMethods(updated, "PetsHandlers"), ops)
+	if changed2 {
+		t.Fatalf("expected idempotent orphan annotation update")
+	}
+	if string(updated2) != string(updated) {
+		t.Fatalf("expected stable output across repeated annotation")
 	}
 }
