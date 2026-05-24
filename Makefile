@@ -2,9 +2,9 @@
 # Default target: show help when `make` is called without arguments
 .DEFAULT_GOAL := help
 
-DEV_COMPOSE_FILE := deploy/local/dev/docker-compose.yaml
-OBSERVABILITY_COMPOSE_FILE := deploy/local/observability/docker-compose.yaml
-COMPOSE_ENV_PATH := $(or $(wildcard deploy/local/.env),$(wildcard .env))
+DEV_COMPOSE_FILE := docker-compose.dev.yaml
+OBSERVABILITY_COMPOSE_FILE := docker-compose.observability.yaml
+COMPOSE_ENV_PATH := $(or $(wildcard .env),$(wildcard deploy/.env))
 COMPOSE_ENV_FILE := $(if $(COMPOSE_ENV_PATH),--env-file $(COMPOSE_ENV_PATH),)
 
 all: openapi stub wire build
@@ -87,8 +87,8 @@ help:
 	@echo "  run            - Run OpenAPI server"
 	@echo "  docker-build   - Build production Docker image"
 	@echo "  docker-run     - Run production Docker container"
-	@echo "  docker-dev     - Start development environment (watch mode via deploy/local/dev)"
-	@echo "  compose-up     - Start full stack (Mock + Monitoring via deploy/local/observability)"
+	@echo "  docker-dev     - Start development environment (watch mode via docker-compose.dev.yaml)"
+	@echo "  compose-up     - Start full stack (Mock + Monitoring via docker-compose.observability.yaml)"
 	@echo "  compose-logs   - Follow logs of full stack"
 	@echo "  compose-down   - Stop full stack"
 	@echo "  compose-smoke  - Run automated stack smoke validation"

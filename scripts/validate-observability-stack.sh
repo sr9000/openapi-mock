@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="$ROOT_DIR/deploy/local/observability/docker-compose.yaml"
+COMPOSE_FILE="$ROOT_DIR/docker-compose.observability.yaml"
 COMPOSE_CMD=(docker compose)
-COMPOSE_ENV_FILE="$ROOT_DIR/deploy/local/.env"
+COMPOSE_ENV_FILE="$ROOT_DIR/.env"
 
-if [[ ! -f "$COMPOSE_ENV_FILE" && -f "$ROOT_DIR/.env" ]]; then
-  COMPOSE_ENV_FILE="$ROOT_DIR/.env"
+if [[ ! -f "$COMPOSE_ENV_FILE" && -f "$ROOT_DIR/deploy/.env" ]]; then
+  COMPOSE_ENV_FILE="$ROOT_DIR/deploy/.env"
 fi
 
 if [[ -f "$COMPOSE_ENV_FILE" ]]; then

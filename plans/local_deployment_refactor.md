@@ -2,10 +2,10 @@
 
 ## What this refactor changes
 
-- Consolidates local Docker Compose assets under `deploy/local/`.
+- Consolidates local deployment settings under `deploy/` while keeping compose entrypoints at repo root.
 - Splits responsibilities into two isolated entrypoints:
-  - `deploy/local/dev/docker-compose.yaml`
-  - `deploy/local/observability/docker-compose.yaml`
+  - `docker-compose.dev.yaml`
+  - `docker-compose.observability.yaml`
 - Removes fixed `container_name` usage from the observability stack so Compose project naming can isolate resources cleanly.
 - Keeps repo-root `Makefile` targets as the supported entrypoints.
 
