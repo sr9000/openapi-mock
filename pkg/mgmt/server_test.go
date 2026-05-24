@@ -1,7 +1,9 @@
 package mgmt
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,7 +19,7 @@ func TestLogsRoutes(t *testing.T) {
 	rec := recorder.New()
 	rec.Record(recorder.CallRecord{RequestID: "id-1", Method: "GET /a", Timestamp: time.Now()})
 	rec.Record(recorder.CallRecord{RequestID: "id-2", Method: "GET /b", Timestamp: time.Now()})
-	s := New(rec, mm.NewStore(), "9000", nil)
+	s := New(Options{Recorder: rec, ContextValues: mm.NewStore(), Port: "9000"})
 	h := s.router()
 
 	getReq := httptest.NewRequest(http.MethodGet, "/logs", nil)
@@ -55,7 +57,7 @@ func TestLogsRoutes(t *testing.T) {
 
 func TestContextValuesCollectionEndpoints(t *testing.T) {
 	store := mm.NewStore()
-	s := New(recorder.New(), store, "9000", nil)
+	s := New(Options{Recorder: recorder.New(), ContextValues: store, Port: "9000"})
 	h := s.router()
 
 	put := httptest.NewRequest(http.MethodPut, "/context-values", strings.NewReader(`{"case-a":{"low":10},"case-b":{"high":20.5}}`))
@@ -90,7 +92,7 @@ func TestContextValuesCollectionEndpoints(t *testing.T) {
 
 func TestContextValuesRequestIDEndpoints(t *testing.T) {
 	store := mm.NewStore()
-	s := New(recorder.New(), store, "9000", nil)
+	s := New(Options{Recorder: recorder.New(), ContextValues: store, Port: "9000"})
 	h := s.router()
 
 	put := httptest.NewRequest(http.MethodPut, "/context-values/case-a", strings.NewReader(`{"low":10,"high":20}`))
@@ -129,7 +131,7 @@ func TestContextValuesRequestIDEndpoints(t *testing.T) {
 }
 
 func TestContextValuesInvalidJSONAndUnknownRequestID(t *testing.T) {
-	s := New(recorder.New(), mm.NewStore(), "9000", nil)
+	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000"})
 	h := s.router()
 
 	bad := httptest.NewRequest(http.MethodPut, "/context-values/case-a", strings.NewReader("{"))
@@ -148,7 +150,7 @@ func TestContextValuesInvalidJSONAndUnknownRequestID(t *testing.T) {
 }
 
 func TestManagementRouteMethodsAndDocs(t *testing.T) {
-	s := New(recorder.New(), mm.NewStore(), "9000", nil)
+	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000"})
 	h := s.router()
 
 	req405 := httptest.NewRequest(http.MethodPost, "/context-values", nil)
@@ -189,11 +191,11 @@ func TestManagementRouteMethodsAndDocs(t *testing.T) {
 }
 
 func TestMockDocsRoutes(t *testing.T) {
-	s := New(recorder.New(), mm.NewStore(), "9000", []MockDoc{
+	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000", MockDocs: []MockDoc{
 		{APIName: "petstore", Title: "Petstore", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Petstore"}}`), nil }},
 		{APIName: "echo", APIVersion: "v2", Title: "Echo v2", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Echo v2"}}`), nil }},
 		{APIName: "echo", APIVersion: "v3", Title: "Echo v3", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Echo v3"}}`), nil }},
-	})
+	}})
 	h := s.router()
 
 	listReq := httptest.NewRequest(http.MethodGet, "/docs", nil)
@@ -237,4 +239,44 @@ func TestMockDocsRoutes(t *testing.T) {
 	if notFoundRes.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 for missing docs json, got %d", notFoundRes.Code)
 	}
+}
+
+func TestResetRoute(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		called := false
+		s := New(Options{
+			Recorder:      recorder.New(),
+			ContextValues: mm.NewStore(),
+			Port:          "9000",
+			Reset: func(context.Context) error {
+				called = true
+				return nil
+			},
+		})
+		h := s.router()
+		req := httptest.NewRequest(http.MethodPost, "/reset", nil)
+		res := httptest.NewRecorder()
+		h.ServeHTTP(res, req)
+		if res.Code != http.StatusOK || !called {
+			t.Fatalf("expected reset success, status=%d called=%v body=%q", res.Code, called, res.Body.String())
+		}
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		s := New(Options{
+			Recorder:      recorder.New(),
+			ContextValues: mm.NewStore(),
+			Port:          "9000",
+			Reset: func(context.Context) error {
+				return errors.New("boom")
+			},
+		})
+		h := s.router()
+		req := httptest.NewRequest(http.MethodPost, "/reset", nil)
+		res := httptest.NewRecorder()
+		h.ServeHTTP(res, req)
+		if res.Code != http.StatusInternalServerError {
+			t.Fatalf("expected reset failure 500, got %d", res.Code)
+		}
+	})
 }

@@ -263,6 +263,7 @@ make compose-up
 | `PUT/PATCH` | `/context-values/{request_id}` | Замена/обновление values для request id            |
 | `DELETE`    | `/context-values/{request_id}` | Удалить values для request id                      |
 | `GET`       | `/doc`                         | Интерактивная страница Swagger UI                  |
+| `POST`      | `/reset`                       | Soft reset mock HTTP-сервера без остановки процесса |
 | `GET`       | `/docs`                        | Список OpenAPI-документов моков                    |
 | `GET`       | `/docs/{api_name}`             | Swagger UI для API или индекс версий               |
 | `GET`       | `/docs/{api_name}/openapi.json` | OpenAPI JSON для API (если версия однозначна)    |
@@ -330,6 +331,9 @@ curl http://localhost:9000/docs/petstore/openapi.json
 
 # OpenAPI JSON для конкретной версии
 curl http://localhost:9000/docs/echo/v1/openapi.json
+
+# Soft reset mock runtime
+curl -X POST http://localhost:9000/reset
 # Открыть Swagger UI в браузере
 open http://localhost:9000/doc
 ```

@@ -140,10 +140,6 @@ func runServer(cfg Config) error {
 		_ = m.Start()
 	}
 
-	if cfg.EnableMgmt {
-		mgmtServer = mgmt.New(rec, contextValues, cfg.MgmtPort, app.MockDocs())
-		_ = mgmtServer.Start()
-	}
 
 	baseLogger, logCloser, err := observability.NewLogger(observability.LogConfig{
 		Format: cfg.LogFormat,
@@ -186,22 +182,30 @@ func runServer(cfg Config) error {
 		middleware.ContextValues(contextValues),
 	}
 
-	// Build app via wire (handles all routing)
-	httpApp, err := app.InitializeHTTPApp(middlewares, m, cfg.EnableLogging)
-	if err != nil {
-		return fmt.Errorf("failed to initialize app: %w", err)
+	rt := newMockRuntime(addr, 5*time.Second, func() (http.Handler, error) {
+		httpApp, err := app.InitializeHTTPApp(middlewares, m, cfg.EnableLogging)
+		if err != nil {
+			return nil, err
+		}
+		return httpApp.Router, nil
+	})
+	if err := rt.Start(); err != nil {
+		return err
 	}
 
-	server := &http.Server{Addr: addr, Handler: httpApp.Router}
+	if cfg.EnableMgmt {
+		mgmtServer = mgmt.New(mgmt.Options{
+			Recorder:      rec,
+			ContextValues: contextValues,
+			MockDocs:      app.MockDocs(),
+			Port:          cfg.MgmtPort,
+			Reset:         resetCallback(rt.Reset, rec, contextValues),
+		})
+		_ = mgmtServer.Start()
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	go func() {
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatal(err)
-		}
-	}()
 
 	<-ctx.Done()
 	log.Println("Shutting down...")
@@ -213,5 +217,16 @@ func runServer(cfg Config) error {
 	if m != nil {
 		_ = m.Stop(ctx)
 	}
-	return server.Shutdown(ctx)
+	return rt.Stop(ctx)
+}
+
+func resetCallback(reset func(context.Context) error, rec *recorder.Recorder, values *mm.Store) func(context.Context) error {
+	return func(ctx context.Context) error {
+		if err := reset(ctx); err != nil {
+			return err
+		}
+		rec.Clear()
+		values.Clear()
+		return nil
+	}
 }

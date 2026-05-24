@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -58,20 +59,37 @@ type Server struct {
 	recorder      *recorder.Recorder
 	contextValues *mm.Store
 	mockDocs      *mockDocsIndex
+	reset         func(context.Context) error
 	server        *http.Server
 	port          string
 }
 
+type Options struct {
+	Recorder      *recorder.Recorder
+	ContextValues *mm.Store
+	MockDocs      []MockDoc
+	Port          string
+	Reset         func(context.Context) error
+}
+
 // New creates a new management server
-func New(rec *recorder.Recorder, contextValues *mm.Store, port string, docs []MockDoc) *Server {
-	if contextValues == nil {
-		contextValues = mm.NewStore()
+
+func New(opts Options) *Server {
+	if opts.Recorder == nil {
+		opts.Recorder = recorder.New()
+	}
+	if opts.Port == "" {
+		opts.Port = "9000"
+	}
+	if opts.ContextValues == nil {
+		opts.ContextValues = mm.NewStore()
 	}
 	return &Server{
-		recorder:      rec,
-		contextValues: contextValues,
-		mockDocs:      newMockDocsIndex(docs),
-		port:          port,
+		recorder:      opts.Recorder,
+		contextValues: opts.ContextValues,
+		mockDocs:      newMockDocsIndex(opts.MockDocs),
+		reset:         opts.Reset,
+		port:          opts.Port,
 	}
 }
 
@@ -110,6 +128,7 @@ func (s *Server) router() http.Handler {
 	r.Delete("/context-values/{request_id}", s.handleDeleteContextValuesByRequestID)
 
 	r.Get("/doc", s.handleDoc)
+	r.Post("/reset", s.handleReset)
 	r.Get("/docs", s.handleDocs)
 	r.Get("/docs/{api_name}", s.handleDocsAPI)
 	r.Get("/docs/{api_name}/openapi.json", s.handleDocsAPIOpenAPI)
@@ -249,6 +268,20 @@ func (s *Server) handleDeleteContextValuesByRequestID(w http.ResponseWriter, r *
 func (s *Server) handleDoc(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write([]byte(renderSwaggerUIHTML("/openapi.json", "OpenAPI Mock Management API")))
+}
+
+func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
+	if s.reset == nil {
+		writeError(w, http.StatusNotImplemented, "reset is not configured")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	if err := s.reset(ctx); err != nil {
+		writeError(w, http.StatusInternalServerError, "reset failed: "+err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "reset"})
 }
 
 func (s *Server) handleDocs(w http.ResponseWriter, _ *http.Request) {

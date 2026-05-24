@@ -29,6 +29,9 @@
       }
     },
     "/doc": {"get": {"responses": {"200": {"description": "OK"}}}},
+    "/reset": {
+      "post": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StatusResponse"}}}}, "500": {"description": "Reset failed"}}}
+    },
     "/docs": {
       "get": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MockDocsList"}}}}}}
     },
