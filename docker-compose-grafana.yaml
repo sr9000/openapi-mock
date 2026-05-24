@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
       target: production
     container_name: openapi-mock-app
+    user: "0:0"
     ports:
       # HTTP server port
       - "${HTTP_PORT:-8080}:8080"
@@ -14,8 +15,19 @@ services:
       - "${MGMT_PORT:-9000}:9000"
     environment:
       - HOST=0.0.0.0
-      - HTTP_LOGGING=${HTTP_LOGGING:-false}
+      - HTTP_LOGGING=${HTTP_LOGGING:-true}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      - LOG_OUTPUT=${LOG_OUTPUT:-file}
+      - LOG_FILE=/var/log/openapi-mock/openapi-mock.log
+      - TRACE_ENABLED=${TRACE_ENABLED:-true}
+      - TRACE_EXPORTER=${TRACE_EXPORTER:-otlp-http}
+      - TRACE_ENDPOINT=otel-collector:4318
+      - TRACE_SAMPLING_RATIO=${TRACE_SAMPLING_RATIO:-1.0}
+      - REQUEST_ID_HEADERS=${REQUEST_ID_HEADERS:-X-Request-ID,X-Request-Id,X-Correlation-ID}
+      - REQUEST_ID_RESPONSE_HEADER=${REQUEST_ID_RESPONSE_HEADER:-X-Request-ID}
     command: ["run", "--metrics-port", "9100", "--mgmt-port", "9000"]
+    volumes:
+      - app_logs:/var/log/openapi-mock
     restart: unless-stopped
   prometheus:
     image: prom/prometheus:latest
@@ -32,6 +44,47 @@ services:
     depends_on:
       - openapi-mock
     restart: unless-stopped
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: openapi-mock-otel-collector
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel/collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      - tempo
+    ports:
+      - "4318:4318"
+    restart: unless-stopped
+  tempo:
+    image: grafana/tempo:latest
+    container_name: openapi-mock-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo_data:/tmp/tempo
+    ports:
+      - "3200:3200"
+    restart: unless-stopped
+  loki:
+    image: grafana/loki:latest
+    container_name: openapi-mock-loki
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    volumes:
+      - loki_data:/loki
+    ports:
+      - "3100:3100"
+    restart: unless-stopped
+  promtail:
+    image: grafana/promtail:latest
+    container_name: openapi-mock-promtail
+    command: ["-config.file=/etc/promtail/config.yaml"]
+    volumes:
+      - ./promtail/promtail.yaml:/etc/promtail/config.yaml:ro
+      - app_logs:/var/log/openapi-mock:ro
+    depends_on:
+      - loki
+      - openapi-mock
+    restart: unless-stopped
   grafana:
     build:
       context: ./grafana
@@ -44,6 +97,11 @@ services:
       - "${GRAFANA_PORT:-3000}:3000"
     depends_on:
       - prometheus
+      - tempo
+      - loki
     restart: unless-stopped
 volumes:
   prometheus_data:
+  tempo_data:
+  loki_data:
+  app_logs:

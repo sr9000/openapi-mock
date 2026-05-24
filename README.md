@@ -155,6 +155,17 @@
 | `MGMT_ENABLED`    | true      | Включить сервер управления            |
 | `METRICS_ENABLED` | true      | Включить сервер метрик                |
 | `HTTP_LOGGING`    | true      | Включить логирование запросов/ответов |
+| `REQUEST_ID_HEADERS` | X-Request-ID,X-Request-Id,X-Correlation-ID | Заголовки для входящего request id |
+| `REQUEST_ID_RESPONSE_HEADER` | X-Request-ID | Каноничный response header c request id |
+| `LOG_FORMAT`      | json      | Формат логов (`json`/`console`)       |
+| `LOG_OUTPUT`      | stdout    | Куда писать логи (`stdout`/`file`)    |
+| `LOG_FILE`        | -         | Путь до лог-файла, если `LOG_OUTPUT=file` |
+| `LOG_LEVEL`       | info      | Уровень логирования (`debug..error`)  |
+| `TRACE_ENABLED`   | false     | Включить OpenTelemetry tracing         |
+| `TRACE_EXPORTER`  | none      | Экспортер (`none`/`file`/`otlp-http`) |
+| `TRACE_ENDPOINT`  | -         | OTLP HTTP endpoint (например `otel-collector:4318`) |
+| `TRACE_FILE`      | ./traces.json | Файл трейсов при `TRACE_EXPORTER=file` |
+| `TRACE_SAMPLING_RATIO` | 1.0  | Доля семплирования трейсов             |
 
 #### Примеры:
 
@@ -234,7 +245,7 @@ make docker-run
 ### Полный стек с мониторингом
 
 ```bash
-# Запуск с Prometheus и Grafana
+# Запуск с Prometheus + Grafana + Tempo + Loki + OTel Collector
 make compose-up
 # Просмотр логов
 make compose-logs
