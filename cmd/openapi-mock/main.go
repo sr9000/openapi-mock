@@ -34,6 +34,7 @@ type Config struct {
 
 	RequestIDHeaders        string `env:"REQUEST_ID_HEADERS" envDefault:"X-Request-ID,X-Request-Id,X-Correlation-ID"`
 	RequestIDResponseHeader string `env:"REQUEST_ID_RESPONSE_HEADER" envDefault:"X-Request-ID"`
+	CORSAllowOrigins        string `env:"CORS_ALLOW_ORIGINS" envDefault:"*"`
 
 	LogFormat string `env:"LOG_FORMAT" envDefault:"json"`
 	LogOutput string `env:"LOG_OUTPUT" envDefault:"stdout"`
@@ -140,7 +141,6 @@ func runServer(cfg Config) error {
 		_ = m.Start()
 	}
 
-
 	baseLogger, logCloser, err := observability.NewLogger(observability.LogConfig{
 		Format: cfg.LogFormat,
 		Output: cfg.LogOutput,
@@ -173,6 +173,7 @@ func runServer(cfg Config) error {
 
 	// Build middlewares
 	middlewares := []func(http.Handler) http.Handler{
+		middleware.CORS(middleware.CORSOptions{AllowOrigins: cfg.CORSAllowOrigins}),
 		middleware.Recording(rec, m, middleware.RecordingOptions{
 			EnableLogging:           cfg.EnableLogging,
 			RequestIDHeaders:        observability.NormalizeHeaderList(cfg.RequestIDHeaders, []string{"X-Request-ID", "X-Request-Id", "X-Correlation-ID"}),

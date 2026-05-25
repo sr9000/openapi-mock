@@ -157,6 +157,7 @@
 | `HTTP_LOGGING`               | true             | Включить логирование запросов/ответов               |
 | `REQUEST_ID_HEADERS`         | X-Request-ID,... | Заголовки для входящего request id                  |
 | `REQUEST_ID_RESPONSE_HEADER` | X-Request-ID     | Каноничный response header c request id             |
+| `CORS_ALLOW_ORIGINS`         | *                | CORS allow origins для mock API (через запятую)     |
 | `LOG_FORMAT`                 | json             | Формат логов (`json`/`console`)                     |
 | `LOG_OUTPUT`                 | stdout           | Куда писать логи (`stdout`/`file`)                  |
 | `LOG_FILE`                   | -                | Путь до лог-файла, если `LOG_OUTPUT=file`           |
