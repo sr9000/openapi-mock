@@ -1,7 +1,7 @@
 #!/bin/bash
 # Test script for OpenAPI mock management server
 # This script validates:
-# - Management server endpoints (/doc, /openapi.json, /logs, /clear)
+# - Management server endpoints (/doc, /openapi.json, /logs, DELETE /logs)
 # - OpenAPI mock server with petstore API
 # - Recording and clearing of HTTP calls
 set -e
@@ -109,7 +109,7 @@ test_swagger_ui_endpoint() {
 test_logs_empty_initially() {
     echo -e "\n${YELLOW}Test: Logs empty initially${NC}"
     # Clear logs first
-    curl -s -X POST "${MGMT_URL}/clear" > /dev/null
+    curl -s -X DELETE "${MGMT_URL}/logs" > /dev/null
     local response
     response=$(curl -s "${MGMT_URL}/logs")
     if [ "$response" = "[]" ] || [ "$response" = "null" ]; then
@@ -145,7 +145,7 @@ test_clear_logs() {
     echo -e "\n${YELLOW}Test: Clear logs endpoint${NC}"
     # Clear logs
     local clear_response
-    clear_response=$(curl -s -X POST "${MGMT_URL}/clear")
+    clear_response=$(curl -s -X DELETE "${MGMT_URL}/logs")
     # Check logs are empty
     local logs
     logs=$(curl -s "${MGMT_URL}/logs")
