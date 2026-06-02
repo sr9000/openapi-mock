@@ -148,6 +148,11 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 				pathLabel = routeTemplateFromRequest(r)
 			}
 
+			// Update span name to use the route template for low cardinality.
+			if pathLabel != "" {
+				span.SetName(r.Method + " " + pathLabel)
+			}
+
 			operation := resolveOperationLabel(r, opts.OperationResolver)
 
 			duration := time.Since(start)
