@@ -41,8 +41,6 @@
 
 * **Go**: версия 1.25 или выше
 * **Make**
-* **oapi-codegen**: Генератор Go кода из OpenAPI (
-  `go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest`)
 
 ## 🚀 Быстрый старт
 

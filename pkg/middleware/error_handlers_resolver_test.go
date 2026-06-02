@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -34,14 +35,32 @@ func TestRequestParseErrors_UseResolvedOperation(t *testing.T) {
 	r.Use(Recording(rec, m, RecordingOptions{BaseLogger: zerolog.Nop(), OperationResolver: resolver}))
 
 	echoStrict := echostub.NewCompositeHandlers(echostub.NewEchoHandlers(false), echostub.NewStatusHandlers(false))
-	echoServer := echogen.NewStrictHandlerWithOptions(echoStrict, []echogen.StrictMiddlewareFunc{OperationContext()}, echogen.StrictHTTPServerOptions{
+	echoServer := echogen.NewStrictHandlerWithOptions(echoStrict, []echogen.StrictMiddlewareFunc{
+		func(next echogen.StrictHandlerFunc, operationID string) echogen.StrictHandlerFunc {
+			mw := OperationContext()
+			return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+				return mw(func(ctx2 context.Context, w2 http.ResponseWriter, r2 *http.Request, req2 any) (any, error) {
+					return next(ctx2, w2, r2, req2)
+				}, operationID)(ctx, w, r, request)
+			}
+		},
+	}, echogen.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
 	})
 	echogen.HandlerWithOptions(echoServer, echogen.ChiServerOptions{BaseRouter: r, ErrorHandlerFunc: errHandlers.RequestErrorHandler})
 
 	petStrict := petstub.NewCompositeHandlers(petstub.NewDefaultHandlers(false), petstub.NewPetsHandlers(false))
-	petServer := petgen.NewStrictHandlerWithOptions(petStrict, []petgen.StrictMiddlewareFunc{OperationContext()}, petgen.StrictHTTPServerOptions{
+	petServer := petgen.NewStrictHandlerWithOptions(petStrict, []petgen.StrictMiddlewareFunc{
+		func(next petgen.StrictHandlerFunc, operationID string) petgen.StrictHandlerFunc {
+			mw := OperationContext()
+			return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+				return mw(func(ctx2 context.Context, w2 http.ResponseWriter, r2 *http.Request, req2 any) (any, error) {
+					return next(ctx2, w2, r2, req2)
+				}, operationID)(ctx, w, r, request)
+			}
+		},
+	}, petgen.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
 	})

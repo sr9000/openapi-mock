@@ -15,17 +15,9 @@ RUN apk update
 #    - build-base: for gcc (if needed by cgo)
 RUN apk add --no-cache bash make git build-base
 
-# 2. Install Go Global Tools
-#    - wire for dependency injection
-#    - air for hot-reloading (watcher)
-#    - oapi-codegen for OpenAPI code generation
-RUN go install github.com/google/wire/cmd/wire@latest && \
-    go install github.com/air-verse/air@latest && \
-    go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
-
 WORKDIR /app
 
-# 3. Pre-build upd-stubs (Optimization)
+# 2. Pre-build upd-stubs (Optimization)
 #    We copy only what is needed to build the CLI tool first.
 #    This allows us to cache the tool compilation even if business logic changes.
 COPY go.mod go.sum ./
@@ -37,7 +29,7 @@ RUN go build -o /usr/local/bin/upd-stubs ./cmd/upd-stubs
 
 
 # ==============================================================================
-# STAGE 2: Development (Watcher / Hot-Reload)
+# STAGE 2: Development
 # ==============================================================================
 FROM tools AS dev
 WORKDIR /app
