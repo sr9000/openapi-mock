@@ -227,7 +227,7 @@ logger.Info().Msg("Запрос достиг бизнес-логики") // Бу
 
 Compose-файлы лежат в корне репозитория, а все конфиги observability — в `deploy/`:
 
-- `docker-compose.dev.yaml` — dev/watch-окружение.
+- `docker-compose.dev.yaml` — dev-окружение.
 - `docker-compose.observability.yaml` — полный observability-стек.
 - `.env.example` — пример локальных переменных окружения.
 - `deploy/prometheus.yaml`, `deploy/otel.yaml`, `deploy/promtail.yaml`, `deploy/tempo.yaml` — плоские конфиги сервисов.
@@ -370,8 +370,11 @@ go run ./cmd/openapi-petstore-client --base-url http://localhost:8080 --tick 100
 ### Разработка
 
 ```bash
-# Запуск в режиме разработки с hot-reload
+# Запуск в режиме разработки (сборка + запуск)
 make docker-dev
+
+# После редактирования api/** или заглушек, пересоберите:
+make all
 
 # Эквивалентная команда Docker Compose
 docker compose -f docker-compose.dev.yaml up --build
