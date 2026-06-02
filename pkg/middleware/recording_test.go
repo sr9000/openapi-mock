@@ -72,9 +72,9 @@ func TestRecording_PropagatesIncomingRequestIDAndWritesResponseHeader(t *testing
 
 	r := chi.NewRouter()
 	r.Use(Recording(rec, m, RecordingOptions{
-		RequestIDHeaders:       []string{"X-Request-ID"},
+		RequestIDHeaders:        []string{"X-Request-ID"},
 		RequestIDResponseHeader: "X-Request-ID",
-		BaseLogger:             zerolog.Nop(),
+		BaseLogger:              zerolog.Nop(),
 	}))
 	r.Get("/echo", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
