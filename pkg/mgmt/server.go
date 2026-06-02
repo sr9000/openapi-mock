@@ -319,6 +319,10 @@ func (s *Server) handleDocsAPI(w http.ResponseWriter, r *http.Request) {
 	doc, ok, versions, ambiguous := s.mockDocs.resolve(apiName)
 	if !ok {
 		if ambiguous {
+			if acceptsHTML(r) {
+				s.handleDocsAPIVersionIndexHTML(w, apiName, versions)
+				return
+			}
 			type versionItem struct {
 				APIName    string `json:"api_name"`
 				APIVersion string `json:"api_ver,omitempty"`
@@ -343,6 +347,31 @@ func (s *Server) handleDocsAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.handleDocUI(w, r, apiName, doc.APIVersion)
+}
+
+func (s *Server) handleDocsAPIVersionIndexHTML(w http.ResponseWriter, apiName string, versions []MockDoc) {
+	var sb strings.Builder
+	sb.WriteString("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\">")
+	sb.WriteString(fmt.Sprintf("<title>%s — Select Version</title>", apiName))
+	sb.WriteString("<style>body{font-family:system-ui,sans-serif;max-width:600px;margin:2em auto}li{margin:.5em 0}a{text-decoration:none}</style>")
+	sb.WriteString("</head><body>")
+	sb.WriteString(fmt.Sprintf("<h1>%s — Available Versions</h1><ul>", apiName))
+	for _, v := range versions {
+		label := v.APIVersion
+		if v.Title != "" {
+			label = v.APIVersion + " — " + v.Title
+		}
+		sb.WriteString(fmt.Sprintf("<li><a href=\"/docs/%s/%s\">%s</a></li>", v.APIName, v.APIVersion, label))
+	}
+	sb.WriteString("</ul></body></html>")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(sb.String()))
+}
+
+func acceptsHTML(r *http.Request) bool {
+	accept := r.Header.Get("Accept")
+	return strings.Contains(accept, "text/html")
 }
 
 func (s *Server) handleDocsAPIOpenAPI(w http.ResponseWriter, r *http.Request) {

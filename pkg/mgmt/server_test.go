@@ -244,6 +244,52 @@ func TestMockDocsRoutes(t *testing.T) {
 	}
 }
 
+func TestMockDocsAmbiguousHTMLVersionIndex(t *testing.T) {
+	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000", MockDocs: []MockDoc{
+		{APIName: "echo", APIVersion: "v2", Title: "Echo v2", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3"}`), nil }},
+		{APIName: "echo", APIVersion: "v3", Title: "Echo v3", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3"}`), nil }},
+	}})
+	h := s.router()
+
+	// Without Accept: text/html → JSON response (default)
+	jsonReq := httptest.NewRequest(http.MethodGet, "/docs/echo", nil)
+	jsonRes := httptest.NewRecorder()
+	h.ServeHTTP(jsonRes, jsonReq)
+	if jsonRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", jsonRes.Code)
+	}
+	ct := jsonRes.Header().Get("Content-Type")
+	if !strings.Contains(ct, "application/json") {
+		t.Fatalf("expected JSON content type, got %q", ct)
+	}
+
+	// With Accept: text/html → HTML version index
+	htmlReq := httptest.NewRequest(http.MethodGet, "/docs/echo", nil)
+	htmlReq.Header.Set("Accept", "text/html")
+	htmlRes := httptest.NewRecorder()
+	h.ServeHTTP(htmlRes, htmlReq)
+	if htmlRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", htmlRes.Code)
+	}
+	ct = htmlRes.Header().Get("Content-Type")
+	if !strings.Contains(ct, "text/html") {
+		t.Fatalf("expected HTML content type, got %q", ct)
+	}
+	body := htmlRes.Body.String()
+	if !strings.Contains(body, "Available Versions") {
+		t.Fatalf("expected version index heading, got %q", body)
+	}
+	if !strings.Contains(body, `/docs/echo/v2"`) {
+		t.Fatalf("expected link to v2, got %q", body)
+	}
+	if !strings.Contains(body, `/docs/echo/v3"`) {
+		t.Fatalf("expected link to v3, got %q", body)
+	}
+	if !strings.Contains(body, "Echo v2") || !strings.Contains(body, "Echo v3") {
+		t.Fatalf("expected version titles in HTML, got %q", body)
+	}
+}
+
 func TestResetRoute(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		called := false
