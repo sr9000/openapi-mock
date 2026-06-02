@@ -276,15 +276,13 @@ make compose-up
 ```json
 {
   "request_id": "ABCD1234",
-  "method": "GET",
+  "method": "GET /pets",
+  "status_code": 200,
   "path": "/pets",
+  "query": "limit=10",
   "timestamp": "2026-02-10T12:00:00Z",
-  "request": {
-    "query": "limit=10"
-  },
-  "response": {
-    "body": "[...]"
-  },
+  "request": null,
+  "response": [{"id":1,"name":"Fido"}],
   "error": "",
   "panic": "",
   "duration_ms": 5
