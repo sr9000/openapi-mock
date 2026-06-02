@@ -116,3 +116,48 @@ func TestMockRuntimeResetIsSerialized(t *testing.T) {
 		t.Fatalf("expected serialized reset builds, max concurrent builds=%d", maxInBuild)
 	}
 }
+
+func TestMockRuntimeKeepsServerOnFailedShutdown(t *testing.T) {
+	rt := newMockRuntime("127.0.0.1:0", 50*time.Millisecond, func() (http.Handler, error) {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			// Slow handler that blocks past the shutdown timeout
+			time.Sleep(2 * time.Second)
+			w.WriteHeader(http.StatusOK)
+		}), nil
+	})
+	if err := rt.Start(); err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+
+	// Start a request that will hold the server open.
+	go func() {
+		_, _ = http.Get("http://" + rt.Addr())
+	}()
+	// Give the request time to be accepted by the server.
+	time.Sleep(50 * time.Millisecond)
+
+	// Shutdown with an already-expired context should fail.
+	expiredCtx, cancel := context.WithCancel(context.Background())
+	cancel() // already expired
+
+	err := rt.Stop(expiredCtx)
+	if err == nil {
+		t.Fatal("expected shutdown to fail with expired context")
+	}
+
+	// The server reference must still be held — a Reset should not rebind.
+	rt.mu.Lock()
+	server := rt.server
+	listener := rt.listener
+	rt.mu.Unlock()
+
+	if server == nil {
+		t.Fatal("server should not be nil after failed shutdown")
+	}
+	if listener == nil {
+		t.Fatal("listener should not be nil after failed shutdown")
+	}
+
+	// Clean up: force shutdown with a generous timeout.
+	_ = rt.Stop(context.Background())
+}

@@ -91,10 +91,10 @@ func (r *mockRuntime) stopLocked(ctx context.Context) error {
 		defer cancel()
 	}
 	err := r.server.Shutdown(shutdownCtx)
-	r.server = nil
-	r.listener = nil
 	if err != nil {
 		return fmt.Errorf("shutdown mock runtime: %w", err)
 	}
+	r.server = nil
+	r.listener = nil
 	return nil
 }
