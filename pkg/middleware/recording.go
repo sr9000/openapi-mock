@@ -72,6 +72,12 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 			rw := &responseWriter{ResponseWriter: w, statusCode: 200}
 			rw.Header().Set(opts.RequestIDResponseHeader, reqID)
 
+			// Track in-flight requests.
+			if m != nil {
+				m.HTTPInFlight.Inc()
+				defer m.HTTPInFlight.Dec()
+			}
+
 			metadata := observability.EnsureRequestMetadata(r.Context())
 			ctx := observability.WithRequestMetadata(r.Context(), metadata)
 			ctx = observability.WithRequestID(ctx, reqID)

@@ -21,6 +21,7 @@ type Metrics struct {
 	HTTPRequestDuration *prometheus.HistogramVec
 	HTTPErrorsTotal     *prometheus.CounterVec
 	HTTPPanicsTotal     *prometheus.CounterVec
+	HTTPInFlight        prometheus.Gauge
 
 	// Resource metrics (custom gauges)
 	MemoryUsage *prometheus.GaugeVec
@@ -78,6 +79,12 @@ func NewHTTP(port string) *Metrics {
 				Help: "Number of goroutines",
 			},
 		),
+		HTTPInFlight: prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Name: "http_requests_in_flight",
+				Help: "Number of HTTP requests currently being processed",
+			},
+		),
 		registry: registry,
 		port:     port,
 	}
@@ -87,6 +94,7 @@ func NewHTTP(port string) *Metrics {
 	registry.MustRegister(m.HTTPRequestDuration)
 	registry.MustRegister(m.HTTPErrorsTotal)
 	registry.MustRegister(m.HTTPPanicsTotal)
+	registry.MustRegister(m.HTTPInFlight)
 	registry.MustRegister(m.MemoryUsage)
 	registry.MustRegister(m.Goroutines)
 
