@@ -92,4 +92,10 @@ func TestRecording_PropagatesIncomingRequestIDAndWritesResponseHeader(t *testing
 	if len(records) != 1 || records[0].RequestID != "req-123" {
 		t.Fatalf("expected recorder to keep incoming request id, got %+v", records)
 	}
+	if records[0].StatusCode != 200 {
+		t.Fatalf("expected status_code 200, got %d", records[0].StatusCode)
+	}
+	if records[0].Path != "/echo" {
+		t.Fatalf("expected path /echo, got %q", records[0].Path)
+	}
 }

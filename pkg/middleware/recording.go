@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -112,8 +113,11 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 					rec.Record(recorder.CallRecord{
 						RequestID:  reqID,
 						Method:     r.Method + " " + pathLabel,
+						StatusCode: 500,
+						Path:       pathLabel,
+						Query:      r.URL.RawQuery,
 						Timestamp:  start,
-						Request:    string(bodyBytes),
+						Request:    toRawMessage(bodyBytes),
 						Panic:      panicMsg,
 						DurationMs: duration.Milliseconds(),
 					})
@@ -156,9 +160,12 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 			rec.Record(recorder.CallRecord{
 				RequestID:  reqID,
 				Method:     r.Method + " " + pathLabel,
+				StatusCode: rw.statusCode,
+				Path:       pathLabel,
+				Query:      r.URL.RawQuery,
 				Timestamp:  start,
-				Request:    string(bodyBytes),
-				Response:   rw.body.String(),
+				Request:    toRawMessage(bodyBytes),
+				Response:   toRawMessage(rw.body.Bytes()),
 				DurationMs: duration.Milliseconds(),
 			})
 
@@ -196,4 +203,17 @@ func routeTemplateFromRequest(r *http.Request) string {
 		return r.URL.Path
 	}
 	return ""
+}
+
+// toRawMessage converts a byte slice to json.RawMessage.
+// If the bytes are valid JSON, they are used as-is; otherwise they are JSON-encoded as a string.
+func toRawMessage(b []byte) json.RawMessage {
+	if len(b) == 0 {
+		return nil
+	}
+	if json.Valid(b) {
+		return json.RawMessage(b)
+	}
+	encoded, _ := json.Marshal(string(b))
+	return json.RawMessage(encoded)
 }

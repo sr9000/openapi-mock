@@ -8,14 +8,17 @@ import (
 
 // CallRecord represents a single recorded HTTP/OpenAPI call.
 type CallRecord struct {
-	RequestID  string    `json:"request_id"`
-	Method     string    `json:"method"`
-	Timestamp  time.Time `json:"timestamp"`
-	Request    any       `json:"request"`
-	Response   any       `json:"response,omitempty"`
-	Error      string    `json:"error,omitempty"`
-	Panic      string    `json:"panic,omitempty"`
-	DurationMs int64     `json:"duration_ms"`
+	RequestID  string          `json:"request_id"`
+	Method     string          `json:"method"`
+	StatusCode int             `json:"status_code"`
+	Path       string          `json:"path"`
+	Query      string          `json:"query,omitempty"`
+	Timestamp  time.Time       `json:"timestamp"`
+	Request    json.RawMessage `json:"request,omitempty"`
+	Response   json.RawMessage `json:"response,omitempty"`
+	Error      string          `json:"error,omitempty"`
+	Panic      string          `json:"panic,omitempty"`
+	DurationMs int64           `json:"duration_ms"`
 }
 
 // Recorder stores recorded HTTP/OpenAPI calls in memory.

@@ -22,10 +22,13 @@ func TestRecord(t *testing.T) {
 
 	record := CallRecord{
 		RequestID:  "test-id-1",
-		Method:     "/TestService/TestMethod",
+		Method:     "GET /pets",
+		StatusCode: 200,
+		Path:       "/pets",
+		Query:      "limit=10",
 		Timestamp:  time.Now(),
-		Request:    map[string]string{"message": "hello"},
-		Response:   map[string]string{"message": "world"},
+		Request:    json.RawMessage(`{"message":"hello"}`),
+		Response:   json.RawMessage(`{"message":"world"}`),
 		DurationMs: 100,
 	}
 
@@ -39,8 +42,17 @@ func TestRecord(t *testing.T) {
 	if records[0].RequestID != "test-id-1" {
 		t.Errorf("Expected request_id 'test-id-1', got '%s'", records[0].RequestID)
 	}
-	if records[0].Method != "/TestService/TestMethod" {
-		t.Errorf("Expected method '/TestService/TestMethod', got '%s'", records[0].Method)
+	if records[0].Method != "GET /pets" {
+		t.Errorf("Expected method 'GET /pets', got '%s'", records[0].Method)
+	}
+	if records[0].StatusCode != 200 {
+		t.Errorf("Expected status_code 200, got %d", records[0].StatusCode)
+	}
+	if records[0].Path != "/pets" {
+		t.Errorf("Expected path '/pets', got '%s'", records[0].Path)
+	}
+	if records[0].Query != "limit=10" {
+		t.Errorf("Expected query 'limit=10', got '%s'", records[0].Query)
 	}
 }
 
@@ -50,7 +62,8 @@ func TestRecordMultiple(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		r.Record(CallRecord{
 			RequestID: "test-id",
-			Method:    "/TestService/TestMethod",
+			Method:    "GET /a",
+			Path:      "/a",
 			Timestamp: time.Now(),
 		})
 	}
@@ -66,7 +79,8 @@ func TestClear(t *testing.T) {
 
 	r.Record(CallRecord{
 		RequestID: "test-id",
-		Method:    "/TestService/TestMethod",
+		Method:    "GET /a",
+		Path:      "/a",
 		Timestamp: time.Now(),
 	})
 
@@ -87,10 +101,12 @@ func TestToJSON(t *testing.T) {
 	timestamp := time.Date(2026, 2, 10, 12, 0, 0, 0, time.UTC)
 	r.Record(CallRecord{
 		RequestID:  "test-id",
-		Method:     "/TestService/TestMethod",
+		Method:     "GET /a",
+		StatusCode: 200,
+		Path:       "/a",
 		Timestamp:  timestamp,
-		Request:    map[string]string{"message": "hello"},
-		Response:   map[string]string{"message": "world"},
+		Request:    json.RawMessage(`{"message":"hello"}`),
+		Response:   json.RawMessage(`{"message":"world"}`),
 		DurationMs: 50,
 	})
 
@@ -111,6 +127,9 @@ func TestToJSON(t *testing.T) {
 	if records[0].RequestID != "test-id" {
 		t.Errorf("Expected request_id 'test-id', got '%s'", records[0].RequestID)
 	}
+	if records[0].StatusCode != 200 {
+		t.Errorf("Expected status_code 200, got %d", records[0].StatusCode)
+	}
 }
 
 func TestRecordWithError(t *testing.T) {
@@ -118,9 +137,9 @@ func TestRecordWithError(t *testing.T) {
 
 	r.Record(CallRecord{
 		RequestID:  "test-id",
-		Method:     "/TestService/TestMethod",
+		Method:     "GET /a",
+		Path:       "/a",
 		Timestamp:  time.Now(),
-		Request:    map[string]string{"message": "hello"},
 		Error:      "something went wrong",
 		DurationMs: 10,
 	})
@@ -140,9 +159,9 @@ func TestRecordWithPanic(t *testing.T) {
 
 	r.Record(CallRecord{
 		RequestID:  "test-id",
-		Method:     "/TestService/TestMethod",
+		Method:     "GET /a",
+		Path:       "/a",
 		Timestamp:  time.Now(),
-		Request:    map[string]string{"message": "hello"},
 		Panic:      "runtime error: index out of range",
 		DurationMs: 5,
 	})
@@ -168,7 +187,8 @@ func TestConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 			r.Record(CallRecord{
 				RequestID: "test-id",
-				Method:    "/TestService/TestMethod",
+				Method:    "GET /a",
+				Path:      "/a",
 				Timestamp: time.Now(),
 			})
 		}(i)
@@ -202,7 +222,8 @@ func TestGetRecordsReturnsCopy(t *testing.T) {
 
 	r.Record(CallRecord{
 		RequestID: "test-id-1",
-		Method:    "/TestService/TestMethod",
+		Method:    "GET /a",
+		Path:      "/a",
 		Timestamp: time.Now(),
 	})
 
@@ -217,9 +238,9 @@ func TestGetRecordsReturnsCopy(t *testing.T) {
 
 func TestGetRecordsByRequestID(t *testing.T) {
 	r := New()
-	r.Record(CallRecord{RequestID: "id-1", Method: "GET /a", Timestamp: time.Now()})
-	r.Record(CallRecord{RequestID: "id-2", Method: "GET /b", Timestamp: time.Now()})
-	r.Record(CallRecord{RequestID: "id-1", Method: "GET /c", Timestamp: time.Now()})
+	r.Record(CallRecord{RequestID: "id-1", Method: "GET /a", Path: "/a", Timestamp: time.Now()})
+	r.Record(CallRecord{RequestID: "id-2", Method: "GET /b", Path: "/b", Timestamp: time.Now()})
+	r.Record(CallRecord{RequestID: "id-1", Method: "GET /c", Path: "/c", Timestamp: time.Now()})
 
 	records := r.GetRecordsByRequestID("id-1")
 	if len(records) != 2 {
@@ -230,5 +251,45 @@ func TestGetRecordsByRequestID(t *testing.T) {
 		if record.RequestID != "id-1" {
 			t.Fatalf("Expected only id-1 records, got %q", record.RequestID)
 		}
+	}
+}
+
+func TestCallRecordJSONRoundTrip(t *testing.T) {
+	original := CallRecord{
+		RequestID:  "round-trip",
+		Method:     "POST /echo",
+		StatusCode: 201,
+		Path:       "/echo",
+		Query:      "q=test",
+		Timestamp:  time.Date(2026, 6, 2, 12, 0, 0, 0, time.UTC),
+		Request:    json.RawMessage(`{"message":"hi"}`),
+		Response:   json.RawMessage(`{"message":"hello"}`),
+		DurationMs: 42,
+	}
+
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+
+	var decoded CallRecord
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if decoded.StatusCode != 201 {
+		t.Errorf("expected status_code 201, got %d", decoded.StatusCode)
+	}
+	if decoded.Path != "/echo" {
+		t.Errorf("expected path /echo, got %q", decoded.Path)
+	}
+	if decoded.Query != "q=test" {
+		t.Errorf("expected query q=test, got %q", decoded.Query)
+	}
+	if string(decoded.Request) != `{"message":"hi"}` {
+		t.Errorf("expected request body, got %q", string(decoded.Request))
+	}
+	if string(decoded.Response) != `{"message":"hello"}` {
+		t.Errorf("expected response body, got %q", string(decoded.Response))
 	}
 }
