@@ -72,9 +72,9 @@ func TestRecording_PropagatesIncomingRequestIDAndWritesResponseHeader(t *testing
 
 	r := chi.NewRouter()
 	r.Use(Recording(rec, m, RecordingOptions{
-		RequestIDHeaders:       []string{"X-Request-ID"},
+		RequestIDHeaders:        []string{"X-Request-ID"},
 		RequestIDResponseHeader: "X-Request-ID",
-		BaseLogger:             zerolog.Nop(),
+		BaseLogger:              zerolog.Nop(),
 	}))
 	r.Get("/echo", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -91,5 +91,38 @@ func TestRecording_PropagatesIncomingRequestIDAndWritesResponseHeader(t *testing
 	records := rec.GetRecords()
 	if len(records) != 1 || records[0].RequestID != "req-123" {
 		t.Fatalf("expected recorder to keep incoming request id, got %+v", records)
+	}
+	if records[0].StatusCode != 200 {
+		t.Fatalf("expected status_code 200, got %d", records[0].StatusCode)
+	}
+	if records[0].Path != "/echo" {
+		t.Fatalf("expected path /echo, got %q", records[0].Path)
+	}
+}
+
+func TestRecording_SpanNameUsesRouteTemplate(t *testing.T) {
+	m := metrics.NewHTTP("0")
+	rec := recorder.New()
+
+	r := chi.NewRouter()
+	r.Use(Recording(rec, m, RecordingOptions{BaseLogger: zerolog.Nop()}))
+	r.Get("/pets/{petId}", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "http://example.com/pets/42", nil)
+	rr := httptest.NewRecorder()
+	r.ServeHTTP(rr, req)
+
+	records := rec.GetRecords()
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	// The recorded path (which mirrors the span name) must use the template, not the concrete path.
+	if records[0].Path != "/pets/{petId}" {
+		t.Errorf("expected path /pets/{petId}, got %q", records[0].Path)
+	}
+	if records[0].Method != "GET /pets/{petId}" {
+		t.Errorf("expected method GET /pets/{petId}, got %q", records[0].Method)
 	}
 }

@@ -17,9 +17,13 @@ func NewStatusHandlers(enableLogging bool) *StatusHandlers {
 	return &StatusHandlers{EnableLogging: enableLogging}
 }
 
+func (h *StatusHandlers) logger(ctx context.Context) zerolog.Logger {
+	return observability.Logger(ctx, zerolog.Nop())
+}
+
 func (h *StatusHandlers) IsFine(ctx context.Context, request gen.IsFineRequestObject) (gen.IsFineResponseObject, error) {
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
+		logger := h.logger(ctx)
 		logger.Info().Str("handler", "StatusHandlers").Msg("IsFine")
 	}
 
@@ -30,7 +34,7 @@ func (h *StatusHandlers) IsFine(ctx context.Context, request gen.IsFineRequestOb
 
 func (h *StatusHandlers) GetStatus(ctx context.Context, request gen.GetStatusRequestObject) (gen.GetStatusResponseObject, error) {
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
+		logger := h.logger(ctx)
 		logger.Info().Str("handler", "StatusHandlers").Msg("GetStatus")
 	}
 

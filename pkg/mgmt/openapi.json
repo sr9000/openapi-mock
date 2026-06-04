@@ -1,170 +1,96 @@
 {
   "openapi": "3.0.3",
-  "info": {
-    "title": "gRPC Mock Management API",
-    "description": "Management API for gRPC mock server used in e2e testing. Provides endpoints to retrieve recorded gRPC calls and clear logs.",
-    "version": "1.0.0"
-  },
-  "servers": [
-    {
-      "url": "http://localhost:9000",
-      "description": "Default management server"
-    }
-  ],
+  "info": {"title": "OpenAPI Mock Management API", "version": "1.0.0"},
   "paths": {
     "/logs": {
+      "get": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/CallRecord"}}}}}}},
+      "delete": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StatusResponse"}}}}}}
+    },
+    "/logs/{request_id}": {
       "get": {
-        "summary": "Get all recorded gRPC calls",
-        "description": "Returns all recorded gRPC calls as JSON array, including request/response bodies, timestamps, errors, and panics.",
-        "operationId": "getLogs",
-        "responses": {
-          "200": {
-            "description": "Successfully retrieved logs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CallRecord"
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Failed to serialize logs"
-          }
-        }
+        "parameters": [{"name": "request_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"type": "array", "items": {"$ref": "#/components/schemas/CallRecord"}}}}}}
       }
     },
-    "/clear": {
-      "post": {
-        "summary": "Clear all recorded gRPC calls",
-        "description": "Removes all recorded gRPC calls from memory.",
-        "operationId": "clearLogs",
-        "responses": {
-          "200": {
-            "description": "Successfully cleared logs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "example": "cleared"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
+    "/context-values": {
+      "get": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValuesStore"}}}}}},
+      "put": {"requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValuesStore"}}}}, "responses": {"200": {"description": "OK"}}},
+      "patch": {"requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValuesStore"}}}}, "responses": {"200": {"description": "OK"}}},
+      "delete": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StatusResponse"}}}}}}
+    },
+    "/context-values/{request_id}": {
+      "parameters": [{"name": "request_id", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValueObject"}}}}}},
+      "put": {"requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValueObject"}}}}, "responses": {"200": {"description": "OK"}}},
+      "patch": {"requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ContextValueObject"}}}}, "responses": {"200": {"description": "OK"}}},
       "delete": {
-        "summary": "Clear all recorded gRPC calls",
-        "description": "Removes all recorded gRPC calls from memory.",
-        "operationId": "clearLogsDelete",
-        "responses": {
-          "200": {
-            "description": "Successfully cleared logs",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string",
-                      "example": "cleared"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
+        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object", "properties": {"keys": {"type": "array", "items": {"type": "string"}}}}}}},
+        "responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StatusResponse"}}}}}
       }
     },
-    "/doc": {
+    "/doc": {"get": {"responses": {"200": {"description": "OK"}}}},
+    "/reset": {
+      "post": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StatusResponse"}}}}, "500": {"description": "Reset failed"}}}
+    },
+    "/docs": {
+      "get": {"responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/MockDocsList"}}}}}}
+    },
+    "/docs/{api_name}": {
       "get": {
-        "summary": "Interactive Swagger UI",
-        "description": "Returns an interactive Swagger UI page for exploring and testing the API.",
-        "operationId": "getDoc",
-        "responses": {
-          "200": {
-            "description": "Swagger UI HTML page",
-            "content": {
-              "text/html": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
+        "parameters": [{"name": "api_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"text/html": {"schema": {"type": "string"}}, "application/json": {"schema": {"$ref": "#/components/schemas/MockDocsVersions"}}}}, "404": {"description": "Not found"}}
       }
     },
-    "/openapi.json": {
+    "/docs/{api_name}/openapi.json": {
       "get": {
-        "summary": "Get OpenAPI specification",
-        "description": "Returns this OpenAPI specification as JSON.",
-        "operationId": "getOpenAPI",
-        "responses": {
-          "200": {
-            "description": "OpenAPI specification",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            }
-          }
-        }
+        "parameters": [{"name": "api_name", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}}, "404": {"description": "Not found"}}
       }
-    }
+    },
+    "/docs/{api_name}/{api_ver}": {
+      "get": {
+        "parameters": [{"name": "api_name", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "api_ver", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"text/html": {"schema": {"type": "string"}}}}, "404": {"description": "Not found"}}
+      }
+    },
+    "/docs/{api_name}/{api_ver}/openapi.json": {
+      "get": {
+        "parameters": [{"name": "api_name", "in": "path", "required": true, "schema": {"type": "string"}}, {"name": "api_ver", "in": "path", "required": true, "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "OK", "content": {"application/json": {"schema": {"type": "object"}}}}, "404": {"description": "Not found"}}
+      }
+    },
+    "/openapi.json": {"get": {"responses": {"200": {"description": "OK"}}}}
   },
   "components": {
     "schemas": {
       "CallRecord": {
         "type": "object",
         "properties": {
-          "request_id": {
-            "type": "string",
-            "description": "Unique identifier for the request"
-          },
-          "method": {
-            "type": "string",
-            "description": "Full gRPC method name (e.g., /EchoService/Echo)"
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Timestamp when the request was received"
-          },
-          "request": {
-            "type": "object",
-            "description": "Full request body"
-          },
-          "response": {
-            "type": "object",
-            "description": "Full response body (if successful)"
-          },
-          "error": {
-            "type": "string",
-            "description": "Error message (if the call failed)"
-          },
-          "panic": {
-            "type": "string",
-            "description": "Panic message (if a panic occurred)"
-          },
-          "duration_ms": {
-            "type": "integer",
-            "format": "int64",
-            "description": "Request duration in milliseconds"
-          }
+          "request_id": {"type": "string"},
+          "method": {"type": "string"},
+          "timestamp": {"type": "string", "format": "date-time"},
+          "request": {},
+          "response": {},
+          "error": {"type": "string"},
+          "panic": {"type": "string"},
+          "duration_ms": {"type": "integer", "format": "int64"}
         }
-      }
+      },
+      "ContextValueObject": {"type": "object", "additionalProperties": true},
+      "ContextValuesStore": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/ContextValueObject"}},
+      "MockDocInfo": {
+        "type": "object",
+        "properties": {
+          "api_name": {"type": "string"},
+          "api_ver": {"type": "string"},
+          "title": {"type": "string"},
+          "ui_url": {"type": "string"},
+          "openapi_url": {"type": "string"}
+        }
+      },
+      "MockDocsList": {"type": "object", "properties": {"items": {"type": "array", "items": {"$ref": "#/components/schemas/MockDocInfo"}}}},
+      "MockDocsVersions": {"type": "object", "properties": {"api_name": {"type": "string"}, "versions": {"type": "array", "items": {"$ref": "#/components/schemas/MockDocInfo"}}}},
+      "StatusResponse": {"type": "object", "properties": {"status": {"type": "string"}}}
     }
   }
 }

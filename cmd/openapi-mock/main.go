@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"openapi-mock/pkg/metrics"
 	"openapi-mock/pkg/mgmt"
 	"openapi-mock/pkg/middleware"
+	"openapi-mock/pkg/mm"
 	"openapi-mock/pkg/observability"
 	"openapi-mock/pkg/recorder"
 )
@@ -32,8 +32,9 @@ type Config struct {
 	EnableMetrics bool   `env:"METRICS_ENABLED" envDefault:"true"`
 	EnableLogging bool   `env:"HTTP_LOGGING" envDefault:"true"`
 
-	RequestIDHeaders       string `env:"REQUEST_ID_HEADERS" envDefault:"X-Request-ID,X-Request-Id,X-Correlation-ID"`
+	RequestIDHeaders        string `env:"REQUEST_ID_HEADERS" envDefault:"X-Request-ID,X-Request-Id,X-Correlation-ID"`
 	RequestIDResponseHeader string `env:"REQUEST_ID_RESPONSE_HEADER" envDefault:"X-Request-ID"`
+	CORSAllowOrigins        string `env:"CORS_ALLOW_ORIGINS" envDefault:"*"`
 
 	LogFormat string `env:"LOG_FORMAT" envDefault:"json"`
 	LogOutput string `env:"LOG_OUTPUT" envDefault:"stdout"`
@@ -131,23 +132,20 @@ func runServer(cfg Config) error {
 	log.Printf("Starting HTTP server on %s", addr)
 
 	rec := recorder.New()
+	contextValues := mm.NewStore()
 
 	var m *metrics.Metrics
+	var mgmtServer *mgmt.Server
 	if cfg.EnableMetrics {
 		m = metrics.NewHTTP(cfg.MetricsPort)
 		_ = m.Start()
 	}
 
-	if cfg.EnableMgmt {
-		_ = mgmt.New(rec, cfg.MgmtPort).Start()
-	}
-
 	baseLogger, logCloser, err := observability.NewLogger(observability.LogConfig{
-		Enabled: cfg.EnableLogging,
-		Format:  cfg.LogFormat,
-		Output:  cfg.LogOutput,
-		File:    cfg.LogFile,
-		Level:   cfg.LogLevel,
+		Format: cfg.LogFormat,
+		Output: cfg.LogOutput,
+		File:   cfg.LogFile,
+		Level:  cfg.LogLevel,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to initialize logger: %w", err)
@@ -175,46 +173,68 @@ func runServer(cfg Config) error {
 
 	// Build middlewares
 	middlewares := []func(http.Handler) http.Handler{
+		middleware.CORS(middleware.CORSOptions{AllowOrigins: cfg.CORSAllowOrigins}),
 		middleware.Recording(rec, m, middleware.RecordingOptions{
 			EnableLogging:           cfg.EnableLogging,
-			RequestIDHeaders:        splitCSV(cfg.RequestIDHeaders),
+			RequestIDHeaders:        observability.NormalizeHeaderList(cfg.RequestIDHeaders, []string{"X-Request-ID", "X-Request-Id", "X-Correlation-ID"}),
 			RequestIDResponseHeader: cfg.RequestIDResponseHeader,
 			BaseLogger:              baseLogger,
 		}),
+		middleware.ContextValues(contextValues),
 	}
 
-	// Build app via wire (handles all routing)
-	httpApp, err := app.InitializeHTTPApp(middlewares, m, cfg.EnableLogging)
-	if err != nil {
-		return fmt.Errorf("failed to initialize app: %w", err)
+	rt := newMockRuntime(addr, 5*time.Second, func() (http.Handler, error) {
+		httpApp, err := app.InitializeHTTPApp(middlewares, m, cfg.EnableLogging)
+		if err != nil {
+			return nil, err
+		}
+		return httpApp.Router, nil
+	})
+	if err := rt.Start(); err != nil {
+		return err
 	}
 
-	server := &http.Server{Addr: addr, Handler: httpApp.Router}
+	if cfg.EnableMgmt {
+		mockHost := cfg.Host
+		if mockHost == "" || mockHost == "0.0.0.0" || mockHost == "::" {
+			mockHost = "localhost"
+		}
+		mockServerURL := "http://" + net.JoinHostPort(mockHost, cfg.Port)
+
+		mgmtServer = mgmt.New(mgmt.Options{
+			Recorder:      rec,
+			ContextValues: contextValues,
+			MockDocs:      app.MockDocs(),
+			MockServerURL: mockServerURL,
+			Port:          cfg.MgmtPort,
+			Reset:         resetCallback(rt.Reset, rec, contextValues),
+		})
+		_ = mgmtServer.Start()
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	go func() {
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Fatal(err)
-		}
-	}()
 
 	<-ctx.Done()
 	log.Println("Shutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return server.Shutdown(ctx)
+	if mgmtServer != nil {
+		_ = mgmtServer.Stop(ctx)
+	}
+	if m != nil {
+		_ = m.Stop(ctx)
+	}
+	return rt.Stop(ctx)
 }
 
-func splitCSV(s string) []string {
-	parts := strings.Split(s, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
+func resetCallback(reset func(context.Context) error, rec *recorder.Recorder, values *mm.Store) func(context.Context) error {
+	return func(ctx context.Context) error {
+		if err := reset(ctx); err != nil {
+			return err
 		}
+		rec.Clear()
+		values.Clear()
+		return nil
 	}
-	return out
 }

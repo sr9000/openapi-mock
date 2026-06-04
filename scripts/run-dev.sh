@@ -1,5 +1,5 @@
 #!/bin/sh
 set -e
-# Start Go Watcher in the foreground.
-# It handles compilation (go -> binary) and restarts the server.
-exec air -c .air.go.toml -- run 0.0.0.0 8080
+# Build and run the server.
+# After editing api/** or stubs, run `make all` to regenerate, then restart.
+make all && exec ./bin/openapi-mock run 0.0.0.0 8080

@@ -124,6 +124,42 @@ func TestGenerateOpenAPIWireFile_UsesMatchingSpecAfterSorting(t *testing.T) {
 	}
 }
 
+func TestGenerateMockDocsFile(t *testing.T) {
+	origWD, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tmp, "internal", "app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chdir(origWD) }()
+
+	specs := []*openapiSpec{
+		{RelPath: "petstore", GenPkgPath: "openapi-mock/internal/generated/petstore", Doc: &openapi3.T{Info: &openapi3.Info{Title: "Petstore"}}},
+		{RelPath: "echo/v1", GenPkgPath: "openapi-mock/internal/generated/echo/v1", Doc: &openapi3.T{Info: &openapi3.Info{Title: "Echo V1"}}},
+	}
+
+	if err := generateMockDocsFile(specs); err != nil {
+		t.Fatalf("generateMockDocsFile() error = %v", err)
+	}
+
+	out, err := os.ReadFile(filepath.Join(tmp, "internal", "app", "mock_docs_gen.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(out)
+	if !strings.Contains(content, "func MockDocs() []mgmt.MockDoc") {
+		t.Fatalf("expected MockDocs function in generated file")
+	}
+	if !strings.Contains(content, "APIName:") || !strings.Contains(content, "\"echo\"") || !strings.Contains(content, "APIVersion:") || !strings.Contains(content, "\"v1\"") {
+		t.Fatalf("expected versioned api metadata in generated file")
+	}
+}
+
 func TestDiscoverOpenAPISpecs_NoSpecsDir(t *testing.T) {
 	origWD, err := os.Getwd()
 	if err != nil {
@@ -322,4 +358,100 @@ func TestUpdateOpenAPIStubFile_DoesNotDuplicateMultilineRenamedReceiverMethod(t 
 	if !strings.Contains(content, "func (h *PetsHandlers) CreatePet(") {
 		t.Fatalf("expected missing CreatePet method to be appended, got:\n%s", content)
 	}
+}
+
+func TestGenerateOpenAPIStubFile_AddsSharedLoggerHelper(t *testing.T) {
+	tmp := t.TempDir()
+	outDir := filepath.Join(tmp, "internal", "stubs", "petstore")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	spec := &openapiSpec{
+		PkgName:     "petstore",
+		GenPkgPath:  "openapi-mock/internal/generated/petstore",
+		StrictNames: map[string]bool{"ListPets": true},
+		Tags:        map[string][]opInfo{},
+	}
+	responses := &openapi3.Responses{}
+	responses.Set("200", &openapi3.ResponseRef{Value: &openapi3.Response{Description: stringPtr("ok")}})
+	ops := []opInfo{{OperationID: "ListPets", Operation: &openapi3.Operation{Responses: responses}}}
+
+	if err := generateOpenAPIStubFile(outDir, spec, "pets", ops); err != nil {
+		t.Fatalf("generateOpenAPIStubFile() error = %v", err)
+	}
+
+	generated, err := os.ReadFile(filepath.Join(outDir, "pets.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(generated)
+
+	if !strings.Contains(content, "func (h *PetsHandlers) logger(ctx context.Context) zerolog.Logger") {
+		t.Fatalf("expected shared logger helper in generated stub, got:\n%s", content)
+	}
+	if !strings.Contains(content, "logger := h.logger(ctx)") {
+		t.Fatalf("expected generated methods to reuse helper logger, got:\n%s", content)
+	}
+	if !strings.Contains(content, "github.com/rs/zerolog") || !strings.Contains(content, "openapi-mock/pkg/observability") {
+		t.Fatalf("expected generated imports for shared logger helper, got:\n%s", content)
+	}
+	if strings.Count(content, "func (h *PetsHandlers) logger(ctx context.Context) zerolog.Logger") != 1 {
+		t.Fatalf("expected exactly one logger helper, got:\n%s", content)
+	}
+}
+
+func TestUpdateOpenAPIStubFile_AddsSharedLoggerHelperToExistingFile(t *testing.T) {
+	tmp := t.TempDir()
+	stubPath := filepath.Join(tmp, "pets.go")
+
+	existing := mustReadTestSource(t, "test_srcs/update_existing_methods/pets_handlers.go")
+	if err := os.WriteFile(stubPath, existing, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	spec := &openapiSpec{
+		PkgName:     "petstore",
+		GenPkgPath:  "openapi-mock/internal/generated/petstore",
+		StrictNames: map[string]bool{"ListPets": true, "CreatePet": true},
+	}
+	responses := &openapi3.Responses{}
+	responses.Set("200", &openapi3.ResponseRef{Value: &openapi3.Response{Description: stringPtr("ok")}})
+	ops := []opInfo{
+		{OperationID: "ListPets", Operation: &openapi3.Operation{Responses: responses}},
+		{OperationID: "CreatePet", Operation: &openapi3.Operation{Responses: responses}},
+	}
+
+	if err := updateOpenAPIStubFile(stubPath, spec, "pets", ops); err != nil {
+		t.Fatalf("updateOpenAPIStubFile() error = %v", err)
+	}
+
+	updated, err := os.ReadFile(stubPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(updated)
+
+	if !strings.Contains(content, "func (h *PetsHandlers) logger(ctx context.Context) zerolog.Logger") {
+		t.Fatalf("expected shared logger helper to be inserted into existing stub, got:\n%s", content)
+	}
+	if !strings.Contains(content, "func (h *PetsHandlers) CreatePet(") {
+		t.Fatalf("expected missing CreatePet method to remain appended, got:\n%s", content)
+	}
+	if !strings.Contains(content, "logger := h.logger(ctx)") {
+		t.Fatalf("expected appended method to use shared logger helper, got:\n%s", content)
+	}
+	if strings.Count(content, "func (h *PetsHandlers) logger(ctx context.Context) zerolog.Logger") != 1 {
+		t.Fatalf("expected exactly one inserted logger helper, got:\n%s", content)
+	}
+	if !strings.Contains(content, "github.com/rs/zerolog") || !strings.Contains(content, "openapi-mock/pkg/observability") {
+		t.Fatalf("expected imports required by shared logger helper, got:\n%s", content)
+	}
+	if strings.Count(content, "ListPets(") != 1 {
+		t.Fatalf("expected existing ListPets method to remain singular, got:\n%s", content)
+	}
+}
+
+func stringPtr(v string) *string {
+	return &v
 }

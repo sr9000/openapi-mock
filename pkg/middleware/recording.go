@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"bytes"
-	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,7 +16,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"openapi-mock/pkg/ctxkeys"
 	"openapi-mock/pkg/metrics"
 	"openapi-mock/pkg/observability"
 	"openapi-mock/pkg/recorder"
@@ -39,12 +38,12 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 }
 
 type RecordingOptions struct {
-	EnableLogging          bool
-	RequestIDHeaders       []string
+	EnableLogging           bool
+	RequestIDHeaders        []string
 	RequestIDResponseHeader string
-	BaseLogger             zerolog.Logger
-	Tracer                 trace.Tracer
-	OperationResolver      OperationResolver
+	BaseLogger              zerolog.Logger
+	Tracer                  trace.Tracer
+	OperationResolver       OperationResolver
 }
 
 func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions) func(http.Handler) http.Handler {
@@ -73,10 +72,15 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 			rw := &responseWriter{ResponseWriter: w, statusCode: 200}
 			rw.Header().Set(opts.RequestIDResponseHeader, reqID)
 
+			// Track in-flight requests.
+			if m != nil {
+				m.HTTPInFlight.Inc()
+				defer m.HTTPInFlight.Dec()
+			}
+
 			metadata := observability.EnsureRequestMetadata(r.Context())
 			ctx := observability.WithRequestMetadata(r.Context(), metadata)
 			ctx = observability.WithRequestID(ctx, reqID)
-			ctx = context.WithValue(ctx, ctxkeys.RequestID{}, reqID)
 			ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(r.Header))
 			ctx, span := opts.Tracer.Start(ctx, r.Method+" "+r.URL.Path, trace.WithSpanKind(trace.SpanKindServer))
 			defer span.End()
@@ -115,8 +119,11 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 					rec.Record(recorder.CallRecord{
 						RequestID:  reqID,
 						Method:     r.Method + " " + pathLabel,
+						StatusCode: 500,
+						Path:       pathLabel,
+						Query:      r.URL.RawQuery,
 						Timestamp:  start,
-						Request:    string(bodyBytes),
+						Request:    toRawMessage(bodyBytes),
 						Panic:      panicMsg,
 						DurationMs: duration.Milliseconds(),
 					})
@@ -147,6 +154,11 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 				pathLabel = routeTemplateFromRequest(r)
 			}
 
+			// Update span name to use the route template for low cardinality.
+			if pathLabel != "" {
+				span.SetName(r.Method + " " + pathLabel)
+			}
+
 			operation := resolveOperationLabel(r, opts.OperationResolver)
 
 			duration := time.Since(start)
@@ -159,9 +171,12 @@ func Recording(rec *recorder.Recorder, m *metrics.Metrics, opts RecordingOptions
 			rec.Record(recorder.CallRecord{
 				RequestID:  reqID,
 				Method:     r.Method + " " + pathLabel,
+				StatusCode: rw.statusCode,
+				Path:       pathLabel,
+				Query:      r.URL.RawQuery,
 				Timestamp:  start,
-				Request:    string(bodyBytes),
-				Response:   rw.body.String(),
+				Request:    toRawMessage(bodyBytes),
+				Response:   toRawMessage(rw.body.Bytes()),
 				DurationMs: duration.Milliseconds(),
 			})
 
@@ -199,4 +214,17 @@ func routeTemplateFromRequest(r *http.Request) string {
 		return r.URL.Path
 	}
 	return ""
+}
+
+// toRawMessage converts a byte slice to json.RawMessage.
+// If the bytes are valid JSON, they are used as-is; otherwise they are JSON-encoded as a string.
+func toRawMessage(b []byte) json.RawMessage {
+	if len(b) == 0 {
+		return nil
+	}
+	if json.Valid(b) {
+		return json.RawMessage(b)
+	}
+	encoded, _ := json.Marshal(string(b))
+	return json.RawMessage(encoded)
 }

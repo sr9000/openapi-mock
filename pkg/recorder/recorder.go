@@ -6,19 +6,22 @@ import (
 	"time"
 )
 
-// CallRecord represents a single gRPC call record
+// CallRecord represents a single recorded HTTP/OpenAPI call.
 type CallRecord struct {
-	RequestID  string    `json:"request_id"`
-	Method     string    `json:"method"`
-	Timestamp  time.Time `json:"timestamp"`
-	Request    any       `json:"request"`
-	Response   any       `json:"response,omitempty"`
-	Error      string    `json:"error,omitempty"`
-	Panic      string    `json:"panic,omitempty"`
-	DurationMs int64     `json:"duration_ms"`
+	RequestID  string          `json:"request_id"`
+	Method     string          `json:"method"`
+	StatusCode int             `json:"status_code"`
+	Path       string          `json:"path"`
+	Query      string          `json:"query,omitempty"`
+	Timestamp  time.Time       `json:"timestamp"`
+	Request    json.RawMessage `json:"request,omitempty"`
+	Response   json.RawMessage `json:"response,omitempty"`
+	Error      string          `json:"error,omitempty"`
+	Panic      string          `json:"panic,omitempty"`
+	DurationMs int64           `json:"duration_ms"`
 }
 
-// Recorder stores gRPC call records in memory
+// Recorder stores recorded HTTP/OpenAPI calls in memory.
 type Recorder struct {
 	mu      sync.RWMutex
 	records []CallRecord
@@ -46,6 +49,18 @@ func (r *Recorder) GetRecords() []CallRecord {
 	result := make([]CallRecord, len(r.records))
 	copy(result, r.records)
 	return result
+}
+
+// GetRecordsByRequestID returns recorded calls that match requestID.
+func (r *Recorder) GetRecordsByRequestID(requestID string) []CallRecord {
+	all := r.GetRecords()
+	filtered := make([]CallRecord, 0)
+	for _, record := range all {
+		if record.RequestID == requestID {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered
 }
 
 // Clear removes all recorded calls

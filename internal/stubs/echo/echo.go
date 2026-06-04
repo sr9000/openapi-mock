@@ -17,9 +17,13 @@ func NewEchoHandlers(enableLogging bool) *EchoHandlers {
 	return &EchoHandlers{EnableLogging: enableLogging}
 }
 
+func (h *EchoHandlers) logger(ctx context.Context) zerolog.Logger {
+	return observability.Logger(ctx, zerolog.Nop())
+}
+
 func (h *EchoHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) (gen.EchoResponseObject, error) {
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
+		logger := h.logger(ctx)
 		logger.Info().Str("handler", "EchoHandlers").Msg("Echo")
 	}
 
@@ -35,7 +39,7 @@ func (h *EchoHandlers) Echo(ctx context.Context, request gen.EchoRequestObject) 
 
 func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersRequestObject) (gen.EchoHeadersResponseObject, error) {
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
+		logger := h.logger(ctx)
 		logger.Info().Str("handler", "EchoHandlers").Msg("EchoHeaders")
 	}
 
@@ -53,7 +57,7 @@ func (h *EchoHandlers) EchoHeaders(ctx context.Context, request gen.EchoHeadersR
 
 func (h *EchoHandlers) EchoPath(ctx context.Context, request gen.EchoPathRequestObject) (gen.EchoPathResponseObject, error) {
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
+		logger := h.logger(ctx)
 		logger.Info().Str("handler", "EchoHandlers").Msg("EchoPath")
 	}
 

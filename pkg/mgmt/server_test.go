@@ -1,333 +1,331 @@
 package mgmt
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"openapi-mock/pkg/recorder"
+	"strings"
 	"testing"
 	"time"
+
+	"openapi-mock/pkg/mm"
+	"openapi-mock/pkg/recorder"
 )
 
-func TestHandleLogs(t *testing.T) {
+func TestLogsRoutes(t *testing.T) {
 	rec := recorder.New()
-	rec.Record(recorder.CallRecord{
-		RequestID:  "test-id",
-		Method:     "/TestService/TestMethod",
-		Timestamp:  time.Now(),
-		Request:    map[string]string{"message": "hello"},
-		Response:   map[string]string{"message": "world"},
-		DurationMs: 50,
-	})
+	rec.Record(recorder.CallRecord{RequestID: "id-1", Method: "GET /a", Timestamp: time.Now()})
+	rec.Record(recorder.CallRecord{RequestID: "id-2", Method: "GET /b", Timestamp: time.Now()})
+	s := New(Options{Recorder: rec, ContextValues: mm.NewStore(), Port: "9000"})
+	h := s.router()
 
-	s := New(rec, "9000")
+	getReq := httptest.NewRequest(http.MethodGet, "/logs", nil)
 
-	req := httptest.NewRequest(http.MethodGet, "/logs", nil)
-	w := httptest.NewRecorder()
-
-	s.handleLogs(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	getRes := httptest.NewRecorder()
+	h.ServeHTTP(getRes, getReq)
+	if getRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", getRes.Code)
 	}
 
-	if resp.Header.Get("Content-Type") != "application/json" {
-		t.Errorf("Expected Content-Type 'application/json', got '%s'", resp.Header.Get("Content-Type"))
+	filterReq := httptest.NewRequest(http.MethodGet, "/logs/id-1", nil)
+	filterRes := httptest.NewRecorder()
+	h.ServeHTTP(filterRes, filterReq)
+	if filterRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", filterRes.Code)
+	}
+	var filtered []recorder.CallRecord
+	if err := json.Unmarshal(filterRes.Body.Bytes(), &filtered); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+	if len(filtered) != 1 || filtered[0].RequestID != "id-1" {
+		t.Fatalf("unexpected filtered records: %+v", filtered)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-	var records []recorder.CallRecord
-	if err := json.Unmarshal(body, &records); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/logs", nil)
+	deleteRes := httptest.NewRecorder()
+	h.ServeHTTP(deleteRes, deleteReq)
+	if deleteRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", deleteRes.Code)
 	}
-
-	if len(records) != 1 {
-		t.Fatalf("Expected 1 record, got %d", len(records))
-	}
-
-	if records[0].RequestID != "test-id" {
-		t.Errorf("Expected request_id 'test-id', got '%s'", records[0].RequestID)
-	}
-}
-
-func TestHandleLogsEmpty(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodGet, "/logs", nil)
-	w := httptest.NewRecorder()
-
-	s.handleLogs(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	if string(body) != "[]" {
-		t.Errorf("Expected empty array '[]', got '%s'", string(body))
-	}
-}
-
-func TestHandleLogsMethodNotAllowed(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
-
-	methods := []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch}
-
-	for _, method := range methods {
-		req := httptest.NewRequest(method, "/logs", nil)
-		w := httptest.NewRecorder()
-
-		s.handleLogs(w, req)
-
-		resp := w.Result()
-		resp.Body.Close()
-
-		if resp.StatusCode != http.StatusMethodNotAllowed {
-			t.Errorf("Expected status 405 for %s, got %d", method, resp.StatusCode)
-		}
-	}
-}
-
-func TestHandleClearPost(t *testing.T) {
-	rec := recorder.New()
-	rec.Record(recorder.CallRecord{
-		RequestID: "test-id",
-		Method:    "/TestService/TestMethod",
-		Timestamp: time.Now(),
-	})
-
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodPost, "/clear", nil)
-	w := httptest.NewRecorder()
-
-	s.handleClear(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	body, _ := io.ReadAll(resp.Body)
-	var result map[string]string
-	if err := json.Unmarshal(body, &result); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-
-	if result["status"] != "cleared" {
-		t.Errorf("Expected status 'cleared', got '%s'", result["status"])
-	}
-
 	if len(rec.GetRecords()) != 0 {
-		t.Error("Expected records to be cleared")
+		t.Fatalf("expected logs to be cleared")
 	}
 }
 
-func TestHandleClearDelete(t *testing.T) {
-	rec := recorder.New()
-	rec.Record(recorder.CallRecord{
-		RequestID: "test-id",
-		Method:    "/TestService/TestMethod",
-		Timestamp: time.Now(),
-	})
+func TestContextValuesCollectionEndpoints(t *testing.T) {
+	store := mm.NewStore()
+	s := New(Options{Recorder: recorder.New(), ContextValues: store, Port: "9000"})
+	h := s.router()
 
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodDelete, "/clear", nil)
-	w := httptest.NewRecorder()
-
-	s.handleClear(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	put := httptest.NewRequest(http.MethodPut, "/context-values", strings.NewReader(`{"case-a":{"low":10},"case-b":{"high":20.5}}`))
+	put.Header.Set("Content-Type", "application/json")
+	putRes := httptest.NewRecorder()
+	h.ServeHTTP(putRes, put)
+	if putRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", putRes.Code)
 	}
 
-	if len(rec.GetRecords()) != 0 {
-		t.Error("Expected records to be cleared")
+	patch := httptest.NewRequest(http.MethodPatch, "/context-values", strings.NewReader(`{"case-a":{"high":30}}`))
+	patch.Header.Set("Content-Type", "application/json")
+	patchRes := httptest.NewRecorder()
+	h.ServeHTTP(patchRes, patch)
+	if patchRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", patchRes.Code)
 	}
-}
+	if store.Get("case-a")["high"] != int(30) {
+		t.Fatalf("expected merged high=30, got %#v", store.Get("case-a")["high"])
+	}
 
-func TestHandleClearMethodNotAllowed(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
-
-	methods := []string{http.MethodGet, http.MethodPut, http.MethodPatch}
-
-	for _, method := range methods {
-		req := httptest.NewRequest(method, "/clear", nil)
-		w := httptest.NewRecorder()
-
-		s.handleClear(w, req)
-
-		resp := w.Result()
-		resp.Body.Close()
-
-		if resp.StatusCode != http.StatusMethodNotAllowed {
-			t.Errorf("Expected status 405 for %s, got %d", method, resp.StatusCode)
-		}
+	deleteReq := httptest.NewRequest(http.MethodDelete, "/context-values", nil)
+	deleteRes := httptest.NewRecorder()
+	h.ServeHTTP(deleteRes, deleteReq)
+	if deleteRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", deleteRes.Code)
+	}
+	if len(store.GetAll()) != 0 {
+		t.Fatalf("expected store to be empty")
 	}
 }
 
-func TestHandleDoc(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
+func TestContextValuesRequestIDEndpoints(t *testing.T) {
+	store := mm.NewStore()
+	s := New(Options{Recorder: recorder.New(), ContextValues: store, Port: "9000"})
+	h := s.router()
 
-	req := httptest.NewRequest(http.MethodGet, "/doc", nil)
-	w := httptest.NewRecorder()
-
-	s.handleDoc(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	put := httptest.NewRequest(http.MethodPut, "/context-values/case-a", strings.NewReader(`{"low":10,"high":20}`))
+	putRes := httptest.NewRecorder()
+	h.ServeHTTP(putRes, put)
+	if putRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", putRes.Code)
 	}
 
-	if resp.Header.Get("Content-Type") != "text/html; charset=utf-8" {
-		t.Errorf("Expected Content-Type 'text/html; charset=utf-8', got '%s'", resp.Header.Get("Content-Type"))
+	patch := httptest.NewRequest(http.MethodPatch, "/context-values/case-a", strings.NewReader(`{"high":30}`))
+	patchRes := httptest.NewRecorder()
+	h.ServeHTTP(patchRes, patch)
+	if patchRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", patchRes.Code)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-	bodyStr := string(body)
-
-	if !contains(bodyStr, "swagger-ui") {
-		t.Error("Expected response to contain 'swagger-ui'")
+	deleteKeyReq := httptest.NewRequest(http.MethodDelete, "/context-values/case-a", strings.NewReader(`{"keys":["low"]}`))
+	deleteKeyRes := httptest.NewRecorder()
+	h.ServeHTTP(deleteKeyRes, deleteKeyReq)
+	if deleteKeyRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", deleteKeyRes.Code)
+	}
+	if _, ok := store.Get("case-a")["low"]; ok {
+		t.Fatalf("expected low to be deleted")
 	}
 
-	if !contains(bodyStr, "SwaggerUIBundle") {
-		t.Error("Expected response to contain 'SwaggerUIBundle'")
+	deleteAllReq := httptest.NewRequest(http.MethodDelete, "/context-values/case-a", nil)
+	deleteAllRes := httptest.NewRecorder()
+	h.ServeHTTP(deleteAllRes, deleteAllReq)
+	if deleteAllRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", deleteAllRes.Code)
 	}
-}
-
-func TestHandleDocMethodNotAllowed(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
-
-	req := httptest.NewRequest(http.MethodPost, "/doc", nil)
-	w := httptest.NewRecorder()
-
-	s.handleDoc(w, req)
-
-	resp := w.Result()
-	resp.Body.Close()
-
-	if resp.StatusCode != http.StatusMethodNotAllowed {
-		t.Errorf("Expected status 405, got %d", resp.StatusCode)
+	if len(store.Get("case-a")) != 0 {
+		t.Fatalf("expected case-a to be removed")
 	}
 }
 
-func TestHandleOpenAPI(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
+func TestContextValuesInvalidJSONAndUnknownRequestID(t *testing.T) {
+	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000"})
+	h := s.router()
 
-	req := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
-	w := httptest.NewRecorder()
-
-	s.handleOpenAPI(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	bad := httptest.NewRequest(http.MethodPut, "/context-values/case-a", strings.NewReader("{"))
+	badRes := httptest.NewRecorder()
+	h.ServeHTTP(badRes, bad)
+	if badRes.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", badRes.Code)
 	}
 
-	if resp.Header.Get("Content-Type") != "application/json" {
-		t.Errorf("Expected Content-Type 'application/json', got '%s'", resp.Header.Get("Content-Type"))
+	unknown := httptest.NewRequest(http.MethodGet, "/context-values/missing", nil)
+	unknownRes := httptest.NewRecorder()
+	h.ServeHTTP(unknownRes, unknown)
+	if unknownRes.Code != http.StatusOK || strings.TrimSpace(unknownRes.Body.String()) != "{}" {
+		t.Fatalf("expected unknown request id response '{}', got status=%d body=%q", unknownRes.Code, unknownRes.Body.String())
+	}
+}
+
+func TestManagementRouteMethodsAndDocs(t *testing.T) {
+	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000"})
+	h := s.router()
+
+	req405 := httptest.NewRequest(http.MethodPost, "/context-values", nil)
+	res405 := httptest.NewRecorder()
+	h.ServeHTTP(res405, req405)
+	if res405.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d", res405.Code)
 	}
 
-	body, _ := io.ReadAll(resp.Body)
+	clearReq := httptest.NewRequest(http.MethodPost, "/clear", nil)
+	clearRes := httptest.NewRecorder()
+	h.ServeHTTP(clearRes, clearReq)
+	if clearRes.Code != http.StatusNotFound {
+		t.Fatalf("expected /clear to be 404, got %d", clearRes.Code)
+	}
+
+	docReq := httptest.NewRequest(http.MethodGet, "/doc", nil)
+	docRes := httptest.NewRecorder()
+	h.ServeHTTP(docRes, docReq)
+	if docRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", docRes.Code)
+	}
+	if !strings.Contains(docRes.Body.String(), "SwaggerUIBundle") {
+		t.Fatalf("expected swagger ui html")
+	}
+
+	openapiReq := httptest.NewRequest(http.MethodGet, "/openapi.json", nil)
+	openapiRes := httptest.NewRecorder()
+	h.ServeHTTP(openapiRes, openapiReq)
+	if openapiRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", openapiRes.Code)
+	}
+	body, _ := io.ReadAll(openapiRes.Body)
 	var spec map[string]any
 	if err := json.Unmarshal(body, &spec); err != nil {
-		t.Fatalf("Failed to unmarshal OpenAPI spec: %v", err)
-	}
-
-	if spec["openapi"] != "3.0.3" {
-		t.Errorf("Expected openapi version '3.0.3', got '%v'", spec["openapi"])
-	}
-
-	info, ok := spec["info"].(map[string]any)
-	if !ok {
-		t.Fatal("Expected 'info' field in spec")
-	}
-
-	if info["title"] != "gRPC Mock Management API" {
-		t.Errorf("Expected title 'gRPC Mock Management API', got '%v'", info["title"])
+		t.Fatalf("invalid openapi json: %v", err)
 	}
 }
 
-func TestHandleSwaggerUIBundle(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
+func TestMockDocsRoutes(t *testing.T) {
+	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000", MockServerURL: "http://127.0.0.1:8080", MockDocs: []MockDoc{
+		{APIName: "petstore", Title: "Petstore", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Petstore"}}`), nil }},
+		{APIName: "echo", APIVersion: "v2", Title: "Echo v2", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Echo v2"}}`), nil }},
+		{APIName: "echo", APIVersion: "v3", Title: "Echo v3", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3","info":{"title":"Echo v3"}}`), nil }},
+	}})
+	h := s.router()
 
-	req := httptest.NewRequest(http.MethodGet, "/swagger-ui-bundle.js", nil)
-	w := httptest.NewRecorder()
-
-	s.handleSwaggerUIBundle(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	listReq := httptest.NewRequest(http.MethodGet, "/docs", nil)
+	listRes := httptest.NewRecorder()
+	h.ServeHTTP(listRes, listReq)
+	if listRes.Code != http.StatusOK || !strings.Contains(listRes.Body.String(), "petstore") {
+		t.Fatalf("unexpected /docs response: status=%d body=%q", listRes.Code, listRes.Body.String())
 	}
 
-	if resp.Header.Get("Content-Type") != "application/javascript" {
-		t.Errorf("Expected Content-Type 'application/javascript', got '%s'", resp.Header.Get("Content-Type"))
+	petReq := httptest.NewRequest(http.MethodGet, "/docs/petstore", nil)
+	petRes := httptest.NewRecorder()
+	h.ServeHTTP(petRes, petReq)
+	if petRes.Code != http.StatusOK || !strings.Contains(petRes.Body.String(), "/docs/petstore/openapi.json") {
+		t.Fatalf("unexpected /docs/petstore response: status=%d body=%q", petRes.Code, petRes.Body.String())
 	}
 
-	body, _ := io.ReadAll(resp.Body)
-	if len(body) < 1000 {
-		t.Error("Expected swagger-ui-bundle.js to be a large file")
+	ambReq := httptest.NewRequest(http.MethodGet, "/docs/echo", nil)
+	ambRes := httptest.NewRecorder()
+	h.ServeHTTP(ambRes, ambReq)
+	if ambRes.Code != http.StatusOK || !strings.Contains(ambRes.Body.String(), `"api_ver":"v2"`) {
+		t.Fatalf("unexpected ambiguous response: status=%d body=%q", ambRes.Code, ambRes.Body.String())
+	}
+
+	jsonReq := httptest.NewRequest(http.MethodGet, "/docs/petstore/openapi.json", nil)
+	jsonRes := httptest.NewRecorder()
+	h.ServeHTTP(jsonRes, jsonReq)
+	if jsonRes.Code != http.StatusOK || !strings.Contains(jsonRes.Body.String(), "Petstore") {
+		t.Fatalf("unexpected openapi response: status=%d body=%q", jsonRes.Code, jsonRes.Body.String())
+	}
+	if !strings.Contains(jsonRes.Body.String(), `"servers":[{"url":"http://127.0.0.1:8080"}]`) {
+		t.Fatalf("expected openapi servers to point to mock endpoint, got: %q", jsonRes.Body.String())
+	}
+
+	versionReq := httptest.NewRequest(http.MethodGet, "/docs/echo/v3/openapi.json", nil)
+	versionRes := httptest.NewRecorder()
+	h.ServeHTTP(versionRes, versionReq)
+	if versionRes.Code != http.StatusOK || !strings.Contains(versionRes.Body.String(), "Echo v3") {
+		t.Fatalf("unexpected version openapi response: status=%d body=%q", versionRes.Code, versionRes.Body.String())
+	}
+
+	notFoundReq := httptest.NewRequest(http.MethodGet, "/docs/missing/openapi.json", nil)
+	notFoundRes := httptest.NewRecorder()
+	h.ServeHTTP(notFoundRes, notFoundReq)
+	if notFoundRes.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing docs json, got %d", notFoundRes.Code)
 	}
 }
 
-func TestHandleSwaggerUICSS(t *testing.T) {
-	rec := recorder.New()
-	s := New(rec, "9000")
+func TestMockDocsAmbiguousHTMLVersionIndex(t *testing.T) {
+	s := New(Options{Recorder: recorder.New(), ContextValues: mm.NewStore(), Port: "9000", MockDocs: []MockDoc{
+		{APIName: "echo", APIVersion: "v2", Title: "Echo v2", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3"}`), nil }},
+		{APIName: "echo", APIVersion: "v3", Title: "Echo v3", SpecJSON: func() ([]byte, error) { return []byte(`{"openapi":"3.0.3"}`), nil }},
+	}})
+	h := s.router()
 
-	req := httptest.NewRequest(http.MethodGet, "/swagger-ui.css", nil)
-	w := httptest.NewRecorder()
-
-	s.handleSwaggerUICSS(w, req)
-
-	resp := w.Result()
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	// Without Accept: text/html → JSON response (default)
+	jsonReq := httptest.NewRequest(http.MethodGet, "/docs/echo", nil)
+	jsonRes := httptest.NewRecorder()
+	h.ServeHTTP(jsonRes, jsonReq)
+	if jsonRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", jsonRes.Code)
+	}
+	ct := jsonRes.Header().Get("Content-Type")
+	if !strings.Contains(ct, "application/json") {
+		t.Fatalf("expected JSON content type, got %q", ct)
 	}
 
-	if resp.Header.Get("Content-Type") != "text/css" {
-		t.Errorf("Expected Content-Type 'text/css', got '%s'", resp.Header.Get("Content-Type"))
+	// With Accept: text/html → HTML version index
+	htmlReq := httptest.NewRequest(http.MethodGet, "/docs/echo", nil)
+	htmlReq.Header.Set("Accept", "text/html")
+	htmlRes := httptest.NewRecorder()
+	h.ServeHTTP(htmlRes, htmlReq)
+	if htmlRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", htmlRes.Code)
 	}
-
-	body, _ := io.ReadAll(resp.Body)
-	if len(body) < 1000 {
-		t.Error("Expected swagger-ui.css to be a large file")
+	ct = htmlRes.Header().Get("Content-Type")
+	if !strings.Contains(ct, "text/html") {
+		t.Fatalf("expected HTML content type, got %q", ct)
+	}
+	body := htmlRes.Body.String()
+	if !strings.Contains(body, "Available Versions") {
+		t.Fatalf("expected version index heading, got %q", body)
+	}
+	if !strings.Contains(body, `/docs/echo/v2"`) {
+		t.Fatalf("expected link to v2, got %q", body)
+	}
+	if !strings.Contains(body, `/docs/echo/v3"`) {
+		t.Fatalf("expected link to v3, got %q", body)
+	}
+	if !strings.Contains(body, "Echo v2") || !strings.Contains(body, "Echo v3") {
+		t.Fatalf("expected version titles in HTML, got %q", body)
 	}
 }
 
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
-}
-
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
+func TestResetRoute(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		called := false
+		s := New(Options{
+			Recorder:      recorder.New(),
+			ContextValues: mm.NewStore(),
+			Port:          "9000",
+			Reset: func(context.Context) error {
+				called = true
+				return nil
+			},
+		})
+		h := s.router()
+		req := httptest.NewRequest(http.MethodPost, "/reset", nil)
+		res := httptest.NewRecorder()
+		h.ServeHTTP(res, req)
+		if res.Code != http.StatusOK || !called {
+			t.Fatalf("expected reset success, status=%d called=%v body=%q", res.Code, called, res.Body.String())
 		}
-	}
-	return false
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		s := New(Options{
+			Recorder:      recorder.New(),
+			ContextValues: mm.NewStore(),
+			Port:          "9000",
+			Reset: func(context.Context) error {
+				return errors.New("boom")
+			},
+		})
+		h := s.router()
+		req := httptest.NewRequest(http.MethodPost, "/reset", nil)
+		res := httptest.NewRecorder()
+		h.ServeHTTP(res, req)
+		if res.Code != http.StatusInternalServerError {
+			t.Fatalf("expected reset failure 500, got %d", res.Code)
+		}
+	})
 }

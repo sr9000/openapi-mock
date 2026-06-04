@@ -19,9 +19,13 @@ func NewPetsHandlers(enableLogging bool) *PetsHandlers {
 	return &PetsHandlers{EnableLogging: enableLogging}
 }
 
+func (h *PetsHandlers) logger(ctx context.Context) zerolog.Logger {
+	return observability.Logger(ctx, zerolog.Nop())
+}
+
 func (h *PetsHandlers) ListPets(ctx context.Context, request gen.ListPetsRequestObject) (gen.ListPetsResponseObject, error) {
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
+		logger := h.logger(ctx)
 		logger.Info().Str("handler", "PetsHandlers").Msg("ListPets")
 	}
 
@@ -36,7 +40,7 @@ func (h *PetsHandlers) ListPets(ctx context.Context, request gen.ListPetsRequest
 
 func (h *PetsHandlers) CreatePet(ctx context.Context, request gen.CreatePetRequestObject) (gen.CreatePetResponseObject, error) {
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
+		logger := h.logger(ctx)
 		logger.Info().Str("handler", "PetsHandlers").Msg("CreatePet")
 	}
 
@@ -54,8 +58,8 @@ func (h *PetsHandlers) CreatePet(ctx context.Context, request gen.CreatePetReque
 }
 
 func (h *PetsHandlers) DeletePet(ctx context.Context, request gen.DeletePetRequestObject) (gen.DeletePetResponseObject, error) {
+	logger := h.logger(ctx)
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
 		logger.Info().Str("handler", "PetsHandlers").Int64("pet_id", request.PetId).Msg("DeletePet")
 	}
 
@@ -70,8 +74,8 @@ func (h *PetsHandlers) DeletePet(ctx context.Context, request gen.DeletePetReque
 }
 
 func (h *PetsHandlers) GetPetById(ctx context.Context, request gen.GetPetByIdRequestObject) (gen.GetPetByIdResponseObject, error) {
+	logger := h.logger(ctx)
 	if h.EnableLogging {
-		logger := observability.Logger(ctx, zerolog.Nop())
 		logger.Info().Str("handler", "PetsHandlers").Int64("pet_id", request.PetId).Msg("GetPetById")
 	}
 

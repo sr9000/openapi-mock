@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -24,7 +25,16 @@ func TestOperationContext_LabelsSuccessfulRequests(t *testing.T) {
 	echoHandlers := echostub.NewEchoHandlers(false)
 	statusHandlers := echostub.NewStatusHandlers(false)
 	strict := echostub.NewCompositeHandlers(echoHandlers, statusHandlers)
-	server := echogen.NewStrictHandlerWithOptions(strict, []echogen.StrictMiddlewareFunc{OperationContext()}, echogen.StrictHTTPServerOptions{
+	server := echogen.NewStrictHandlerWithOptions(strict, []echogen.StrictMiddlewareFunc{
+		func(next echogen.StrictHandlerFunc, operationID string) echogen.StrictHandlerFunc {
+			mw := OperationContext()
+			return func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {
+				return mw(func(ctx2 context.Context, w2 http.ResponseWriter, r2 *http.Request, req2 any) (any, error) {
+					return next(ctx2, w2, r2, req2)
+				}, operationID)(ctx, w, r, request)
+			}
+		},
+	}, echogen.StrictHTTPServerOptions{
 		RequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,
 		ResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,
 	})

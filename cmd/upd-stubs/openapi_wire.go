@@ -32,7 +32,6 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 
 	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/metrics\"\n")
 	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/middleware\"\n")
-	fmt.Fprintf(&buf, "\t\"openapi-mock/pkg/observability\"\n")
 
 	// Import all generated packages first, then stubs
 	type specImport struct {
@@ -97,6 +96,19 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		imp := ws.Imp
 		spec := ws.Spec
 
+		fmt.Fprintf(&buf, "func provide%sStrictMiddlewares() []%s.StrictMiddlewareFunc {\n", toPascalCase(spec.PkgName), imp.GenAlias)
+		fmt.Fprintf(&buf, "\treturn []%s.StrictMiddlewareFunc{\n", imp.GenAlias)
+		fmt.Fprintf(&buf, "\t\tfunc(next %s.StrictHandlerFunc, operationID string) %s.StrictHandlerFunc {\n", imp.GenAlias, imp.GenAlias)
+		fmt.Fprintf(&buf, "\t\t\twrapped := middleware.OperationContext()(func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {\n")
+		fmt.Fprintf(&buf, "\t\t\t\treturn next(ctx, w, r, request)\n")
+		fmt.Fprintf(&buf, "\t\t\t}, operationID)\n")
+		fmt.Fprintf(&buf, "\t\t\treturn func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error) {\n")
+		fmt.Fprintf(&buf, "\t\t\t\treturn wrapped(ctx, w, r, request)\n")
+		fmt.Fprintf(&buf, "\t\t\t}\n")
+		fmt.Fprintf(&buf, "\t\t},\n")
+		fmt.Fprintf(&buf, "\t}\n")
+		fmt.Fprintf(&buf, "}\n\n")
+
 		fmt.Fprintf(&buf, "func provide%sHandlers(", toPascalCase(spec.PkgName))
 		var params []string
 		for _, tag := range spec.getSortedTags() {
@@ -110,12 +122,7 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 		params = append(params, "errHandlers *middleware.ErrorHandlers")
 		fmt.Fprintf(&buf, "%s) %s.ServerInterface {\n", strings.Join(params, ", "), imp.GenAlias)
 		fmt.Fprintf(&buf, "\tstrict := %s.NewCompositeHandlers(%s)\n", imp.StubAlias, extractFieldNames(handlerParams))
-		fmt.Fprintf(&buf, "\tstrictMiddlewares := []%s.StrictMiddlewareFunc{func(next %s.StrictHandlerFunc, operationID string) %s.StrictHandlerFunc {\n", imp.GenAlias, imp.GenAlias, imp.GenAlias)
-		fmt.Fprintf(&buf, "\t\treturn func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {\n")
-		fmt.Fprintf(&buf, "\t\t\tctx = observability.WithOperation(ctx, operationID)\n")
-		fmt.Fprintf(&buf, "\t\t\treturn next(ctx, w, r, request)\n")
-		fmt.Fprintf(&buf, "\t\t}\n")
-		fmt.Fprintf(&buf, "\t}}\n")
+		fmt.Fprintf(&buf, "\tstrictMiddlewares := provide%sStrictMiddlewares()\n", toPascalCase(spec.PkgName))
 		fmt.Fprintf(&buf, "\treturn %s.NewStrictHandlerWithOptions(strict, strictMiddlewares, %s.StrictHTTPServerOptions{\n", imp.GenAlias, imp.GenAlias)
 		fmt.Fprintf(&buf, "\t\tRequestErrorHandlerFunc:  errHandlers.RequestErrorHandler,\n")
 		fmt.Fprintf(&buf, "\t\tResponseErrorHandlerFunc: errHandlers.ResponseErrorHandler,\n")
