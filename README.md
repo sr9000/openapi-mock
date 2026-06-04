@@ -250,26 +250,26 @@ make compose-up
 
 ### Эндпоинты:
 
-| Метод       | Путь                           | Описание                                           |
-|:------------|:-------------------------------|:---------------------------------------------------|
-| `GET`       | `/logs`                        | Получить все записанные HTTP-вызовы в формате JSON |
-| `GET`       | `/logs/{request_id}`           | Получить записи только для конкретного request id  |
-| `DELETE`    | `/logs`                        | Очистить все записи                                |
-| `GET`       | `/context-values`              | Получить все context values по request id          |
-| `PUT/PATCH` | `/context-values`              | Полная замена/обновление всех context values       |
-| `DELETE`    | `/context-values`              | Очистить все context values                        |
-| `GET`       | `/context-values/{request_id}` | Получить values для request id                     |
-| `PUT/PATCH` | `/context-values/{request_id}` | Замена/обновление values для request id            |
-| `DELETE`    | `/context-values/{request_id}` | Удалить values для request id                      |
-| `GET`       | `/doc`                         | Интерактивная страница Swagger UI                  |
-| `POST`      | `/reset`                       | Soft reset mock HTTP-сервера без остановки процесса |
-| `GET`       | `/docs`                        | Список OpenAPI-документов моков                    |
-| `GET`       | `/docs/{api_name}`             | Swagger UI для API или индекс версий               |
-| `GET`       | `/docs/{api_name}/openapi.json` | OpenAPI JSON для API (если версия однозначна)    |
-| `GET`       | `/docs/{api_name}/{api_ver}`   | Swagger UI для конкретной версии API               |
-| `GET`       | `/docs/{api_name}/{api_ver}/openapi.json` | OpenAPI JSON для версии API            |
-| `GET`       | `/openapi.json`                | Спецификация OpenAPI в формате JSON                |
-| `GET`       | `/metrics`                     | Метрики Prometheus (RPS, тайминги, ошибки)         |
+| Метод       | Путь                                      | Описание                                            |
+|:------------|:------------------------------------------|:----------------------------------------------------|
+| `GET`       | `/logs`                                   | Получить все записанные HTTP-вызовы в формате JSON  |
+| `GET`       | `/logs/{request_id}`                      | Получить записи только для конкретного request id   |
+| `DELETE`    | `/logs`                                   | Очистить все записи                                 |
+| `GET`       | `/context-values`                         | Получить все context values по request id           |
+| `PUT/PATCH` | `/context-values`                         | Полная замена/обновление всех context values        |
+| `DELETE`    | `/context-values`                         | Очистить все context values                         |
+| `GET`       | `/context-values/{request_id}`            | Получить values для request id                      |
+| `PUT/PATCH` | `/context-values/{request_id}`            | Замена/обновление values для request id             |
+| `DELETE`    | `/context-values/{request_id}`            | Удалить values для request id                       |
+| `GET`       | `/doc`                                    | Интерактивная страница Swagger UI                   |
+| `POST`      | `/reset`                                  | Soft reset mock HTTP-сервера без остановки процесса |
+| `GET`       | `/docs`                                   | Список OpenAPI-документов моков                     |
+| `GET`       | `/docs/{api_name}`                        | Swagger UI для API или индекс версий                |
+| `GET`       | `/docs/{api_name}/openapi.json`           | OpenAPI JSON для API (если версия однозначна)       |
+| `GET`       | `/docs/{api_name}/{api_ver}`              | Swagger UI для конкретной версии API                |
+| `GET`       | `/docs/{api_name}/{api_ver}/openapi.json` | OpenAPI JSON для версии API                         |
+| `GET`       | `/openapi.json`                           | Спецификация OpenAPI в формате JSON                 |
+| `GET`       | `/metrics`                                | Метрики Prometheus (RPS, тайминги, ошибки)          |
 
 ### Формат записи вызова:
 
@@ -282,7 +282,12 @@ make compose-up
   "query": "limit=10",
   "timestamp": "2026-02-10T12:00:00Z",
   "request": null,
-  "response": [{"id":1,"name":"Fido"}],
+  "response": [
+    {
+      "id": 1,
+      "name": "Fido"
+    }
+  ],
   "error": "",
   "panic": "",
   "duration_ms": 5
