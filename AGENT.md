@@ -1,5 +1,9 @@
 # AGENT notes for `openapi-mock`
 
+## Contracts
+
+This repo implements the contracts defined in `../CONTRACTS.md` (workspace root). See that file for the unified CLI, Management API, Recorder JSON, Metrics, Make target, Stub Updater, and Docs layout contracts.
+
 ## Snapshot
 
 `openapi-mock` is currently the more mature operator-facing repo of the pair.
