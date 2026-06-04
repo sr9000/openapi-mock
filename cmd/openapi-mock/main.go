@@ -93,6 +93,10 @@ func main() {
 				v, _ := cmd.Flags().GetBool("http-logging")
 				cfg.EnableLogging = v
 			}
+			if cmd.Flags().Changed("logging") {
+				v, _ := cmd.Flags().GetBool("logging")
+				cfg.EnableLogging = v
+			}
 
 			// Positional args override too (highest priority), for backwards compatibility.
 			if len(args) >= 1 {
@@ -116,6 +120,7 @@ func main() {
 	run.Flags().Bool("mgmt-enabled", true, "Enable management API (env: MGMT_ENABLED)")
 	run.Flags().Bool("metrics-enabled", true, "Enable metrics endpoint (env: METRICS_ENABLED)")
 	run.Flags().Bool("http-logging", true, "Enable HTTP request logging (env: HTTP_LOGGING)")
+	run.Flags().Bool("logging", true, "Enable request logging (alias for --http-logging, env: HTTP_LOGGING)")
 
 	root.AddCommand(run)
 	root.AddCommand(&cobra.Command{
