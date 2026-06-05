@@ -35,7 +35,7 @@ It already provides:
 ## Gaps versus `grpc-mock`
 
 1. **Dev loop is weaker**
-    - `scripts/run-dev.sh` rebuilds and runs, but does not mirror the watcher-based hot reload flow used in `grpc-mock`
+    - `scripts/run-dev.sh` rebuilds and runs, but does not provide watcher-based hot reload in its documented primary flow
 2. **Operator surface is richer, but not yet aligned**
     - flag semantics differ from `grpc-mock` (`--mgmt-enabled` vs `--no-mgmt`, etc.)
 3. **Higher complexity cost**
