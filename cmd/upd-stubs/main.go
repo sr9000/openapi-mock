@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	openapiWireOut = "internal/app/openapi_wire.go"
+	openapiWireOut = "internal/app/wire.go"
 	dryRun         bool
 	pruneStale     bool
 	verboseLogs    bool

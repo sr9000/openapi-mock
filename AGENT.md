@@ -34,18 +34,20 @@ It already provides:
 
 ## Gaps versus `grpc-mock`
 
-The genuinely-open items; the full cross-repo list lives in `../CONTRACTS.md` §8.
+The cross-repo status lives in `../CONTRACTS.md` §9. Current state:
 
-1. **Fewer CLI knobs** — logging/tracing are configurable via **env only**. `grpc-mock` also exposes
-   `--log-format/-output/-file/-level` and `--trace-*` flags. Either add the flags here or document env-only intentionally.
-2. **Dev loop parity** — `make docker-dev` is described as watch mode, but the documented primary flow still rebuilds
-   via `make all`. Confirm whether true file-watch reload is wired, and align the docs/help text accordingly.
-3. **Flag-name drift** — request logging is `--http-logging` (with `--logging` alias) vs `grpc-mock`'s `--logging`.
-   Standardise docs on the common `--logging`.
-4. **Higher complexity cost** — more moving pieces in observability and the updater pipeline; stronger platform but
-   more maintenance overhead.
-5. **Docs table nit** — the management-API "Extended" table lists `/metrics`, but metrics are served on the dedicated
-   `METRICS_PORT` (9100), not by the management server. Make the separate port explicit.
+- ✅ **CLI parity reached** — logging/tracing/request-id config are now exposed as flags
+  (`--log-*`, `--trace-*`, `--request-id-*`), plus the HTTP-specific `--cors-allow-origins`.
+- ✅ **Naming aligned** — wire source is `internal/app/wire.go`; updater files dropped the redundant `openapi_`
+  prefix (`discovery.go`, `stubs.go`, `wire.go`, `provider.go`).
+- ✅ **Docs nit fixed** — the management-API table now states that `/metrics` is served on `METRICS_PORT` (9100).
+
+Remaining (by design / low priority):
+
+- 🔶 Request-logging **env var** is `HTTP_LOGGING` (vs grpc's `GRPC_LOGGING`); common CLI is `--logging`.
+- ⚠️ **Dev loop wording** — confirm whether `make docker-dev` is true file-watch reload or rebuild, and keep the
+  help text/README consistent with reality.
+- ⚠️ **Higher complexity cost** — more moving pieces in observability and the updater pipeline.
 
 ## Recommendations for unification work
 

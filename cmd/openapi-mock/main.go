@@ -98,6 +98,52 @@ func main() {
 				cfg.EnableLogging = v
 			}
 
+			// Logging flag overrides
+			if v, _ := cmd.Flags().GetString("log-format"); v != "" {
+				cfg.LogFormat = v
+			}
+			if v, _ := cmd.Flags().GetString("log-output"); v != "" {
+				cfg.LogOutput = v
+			}
+			if v, _ := cmd.Flags().GetString("log-file"); v != "" {
+				cfg.LogFile = v
+			}
+			if v, _ := cmd.Flags().GetString("log-level"); v != "" {
+				cfg.LogLevel = v
+			}
+
+			// Tracing flag overrides
+			if cmd.Flags().Changed("trace-enabled") {
+				v, _ := cmd.Flags().GetBool("trace-enabled")
+				cfg.TraceEnabled = v
+			}
+			if v, _ := cmd.Flags().GetString("trace-exporter"); v != "" {
+				cfg.TraceExporter = v
+			}
+			if v, _ := cmd.Flags().GetString("trace-endpoint"); v != "" {
+				cfg.TraceEndpoint = v
+			}
+			if v, _ := cmd.Flags().GetString("trace-file"); v != "" {
+				cfg.TraceFile = v
+			}
+			if cmd.Flags().Changed("trace-sampling-ratio") {
+				v, _ := cmd.Flags().GetFloat64("trace-sampling-ratio")
+				cfg.TraceSamplingRatio = v
+			}
+
+			// Request-ID flag overrides
+			if v, _ := cmd.Flags().GetString("request-id-headers"); v != "" {
+				cfg.RequestIDHeaders = v
+			}
+			if v, _ := cmd.Flags().GetString("request-id-response-header"); v != "" {
+				cfg.RequestIDResponseHeader = v
+			}
+
+			// CORS flag override
+			if v, _ := cmd.Flags().GetString("cors-allow-origins"); v != "" {
+				cfg.CORSAllowOrigins = v
+			}
+
 			// Positional args override too (highest priority), for backwards compatibility.
 			if len(args) >= 1 {
 				cfg.Host = args[0]
@@ -121,6 +167,26 @@ func main() {
 	run.Flags().Bool("metrics-enabled", true, "Enable metrics endpoint (env: METRICS_ENABLED)")
 	run.Flags().Bool("http-logging", true, "Enable HTTP request logging (env: HTTP_LOGGING)")
 	run.Flags().Bool("logging", true, "Enable request logging (alias for --http-logging, env: HTTP_LOGGING)")
+
+	// Logging flags (parity with grpc-mock)
+	run.Flags().String("log-format", "", "Log format: json or console (env: LOG_FORMAT)")
+	run.Flags().String("log-output", "", "Log output: stdout or file (env: LOG_OUTPUT)")
+	run.Flags().String("log-file", "", "Log file path when output=file (env: LOG_FILE)")
+	run.Flags().String("log-level", "", "Log level: debug, info, warn, error (env: LOG_LEVEL)")
+
+	// Tracing flags (parity with grpc-mock)
+	run.Flags().Bool("trace-enabled", false, "Enable OpenTelemetry tracing (env: TRACE_ENABLED)")
+	run.Flags().String("trace-exporter", "", "Trace exporter: none, file, otlp-http (env: TRACE_EXPORTER)")
+	run.Flags().String("trace-endpoint", "", "OTLP HTTP endpoint, e.g. otel-collector:4318 (env: TRACE_ENDPOINT)")
+	run.Flags().String("trace-file", "", "Trace file path when exporter=file (env: TRACE_FILE)")
+	run.Flags().Float64("trace-sampling-ratio", 0, "Trace sampling ratio 0.0–1.0 (env: TRACE_SAMPLING_RATIO)")
+
+	// Request-ID flags (parity with grpc-mock)
+	run.Flags().String("request-id-headers", "", "Comma-separated inbound request-id header names (env: REQUEST_ID_HEADERS)")
+	run.Flags().String("request-id-response-header", "", "Response header name for request-id echo (env: REQUEST_ID_RESPONSE_HEADER)")
+
+	// HTTP-specific flag
+	run.Flags().String("cors-allow-origins", "", "Comma-separated CORS allow origins (env: CORS_ALLOW_ORIGINS)")
 
 	root.AddCommand(run)
 	root.AddCommand(&cobra.Command{

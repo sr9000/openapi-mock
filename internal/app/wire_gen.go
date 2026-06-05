@@ -19,7 +19,7 @@ import (
 	"openapi-mock/pkg/middleware"
 )
 
-// Injectors from openapi_wire.go:
+// Injectors from wire.go:
 
 func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, m *metrics.Metrics, enableLogging bool) (*HTTPApp, error) {
 	operationResolver := provideOperationResolver()
@@ -41,7 +41,7 @@ func InitializeHTTPApp(middlewares []func(http.Handler) http.Handler, m *metrics
 	return httpApp, nil
 }
 
-// openapi_wire.go:
+// wire.go:
 
 type HTTPApp struct {
 	Router          *chi.Mux

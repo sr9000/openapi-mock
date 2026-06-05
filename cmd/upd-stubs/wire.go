@@ -12,7 +12,7 @@ import (
 	goimports "golang.org/x/tools/imports"
 )
 
-// generateOpenAPIWireFile generates internal/app/openapi_wire.go
+// generateOpenAPIWireFile generates internal/app/wire.go
 func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	if len(specs) == 0 {
 		return nil
@@ -192,12 +192,12 @@ func generateOpenAPIWireFile(specs []*openapiSpec) error {
 	src, err := format.Source(buf.Bytes())
 	if err != nil {
 		if verboseLogs {
-			log.Printf("failed to format openapi_wire.go: %v\nSource:\n%s", err, buf.String())
+			log.Printf("failed to format wire.go: %v\nSource:\n%s", err, buf.String())
 		}
 		return err
 	}
 
-	src, err = goimports.Process("openapi_wire.go", src, nil)
+	src, err = goimports.Process("wire.go", src, nil)
 	if err != nil {
 		return err
 	}

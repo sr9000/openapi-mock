@@ -107,7 +107,7 @@ func TestGenerateOpenAPIWireFile_UsesMatchingSpecAfterSorting(t *testing.T) {
 		t.Fatalf("generateOpenAPIWireFile() error = %v", err)
 	}
 
-	out, err := os.ReadFile(filepath.Join(tmp, "internal", "app", "openapi_wire.go"))
+	out, err := os.ReadFile(filepath.Join(tmp, "internal", "app", "wire.go"))
 	if err != nil {
 		t.Fatal(err)
 	}

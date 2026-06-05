@@ -44,7 +44,7 @@
 
 ### 5. Генерация Wire-конфигурации
 
-- Генерируется `internal/app/openapi_wire.go` (или путь из `--wire-out`).
+- Генерируется `internal/app/wire.go` (или путь из `--wire-out`).
 - Для импортов используются устойчивые уникальные alias-имена, чтобы избежать коллизий между API/версиями.
 
 ---
@@ -55,7 +55,7 @@
 go run ./cmd/upd-stubs \
   --generated-dir internal/generated \
   --stubs-dir internal/stubs \
-  --wire-out internal/app/openapi_wire.go \
+  --wire-out internal/app/wire.go \
   --dry-run \
   --prune \
   --verbose
