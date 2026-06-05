@@ -36,7 +36,7 @@ func run() error {
 		return err
 	}
 	if len(openapiSpecs) == 0 {
-		log.Println("No OpenAPI specs found in api/ directory")
+		log.Println("No OpenAPI specs found in api-specs/ directory")
 		return nil
 	}
 

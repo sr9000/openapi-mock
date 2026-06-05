@@ -27,7 +27,7 @@
 │   ├── mgmt/            # Сервер управления для e2e-тестирования
 │   ├── middleware/      # HTTP middleware (логирование, запись)
 │   └── recorder/        # Запись HTTP-вызовов
-├── api/                 # <--- Поместите ваши OpenAPI спецификации сюда
+├── api-specs/                 # <--- Поместите ваши OpenAPI спецификации сюда
 │   ├── echo/            # Пример: Echo API (без версии)
 │   │   └── openapi.yaml
 │   └── petstore/        # Пример: Petstore API
@@ -46,16 +46,16 @@
 
 Рабочий процесс максимально упрощен:
 
-1. **Создайте OpenAPI спецификацию** в директории `api/`.
+1. **Создайте OpenAPI спецификацию** в директории `api-specs/`.
 
    Например, для нового API `myservice`:
    ```bash
-   mkdir -p api/myservice
-   # Создайте api/myservice/openapi.yaml с вашей спецификацией
+   mkdir -p api-specs/myservice
+   # Создайте api-specs/myservice/openapi.yaml с вашей спецификацией
 
    # Дополнительно можно держать версию рядом
-   mkdir -p api/myservice/v3
-   # Создайте api/myservice/v3/openapi.yaml
+   mkdir -p api-specs/myservice/v3
+   # Создайте api-specs/myservice/v3/openapi.yaml
    ```
 
 2. **Запустите команду сборки**:
@@ -63,7 +63,7 @@
    make all
    ```
    Эта команда выполнит:
-    - `make openapi` — генерация Go-кода из всех спецификаций в `api/`
+    - `make openapi` — генерация Go-кода из всех спецификаций в `api-specs/`
     - `make stub` — создание/обновление заглушек в `internal/stubs/`
     - `make wire` — обновление DI-конфигурации для всех API
     - `make build` — компиляция бинарного файла
@@ -86,11 +86,11 @@
 
 ## ✨ Ключевые возможности
 
-* **Мульти-API поддержка**: Добавляйте любое количество OpenAPI спецификаций в `api/`. Все API автоматически
+* **Мульти-API поддержка**: Добавляйте любое количество OpenAPI спецификаций в `api-specs/`. Все API автоматически
   объединяются в один HTTP-сервер с единой точкой входа.
 * **Поддержка версий API**: Одновременно поддерживаются оба формата:
-    * `api/<api_name>/openapi.yaml`
-    * `api/<api_name>/<version>/openapi.yaml` (например, `api/petstore/v3/openapi.yaml`)
+    * `api-specs/<api_name>/openapi.yaml`
+    * `api-specs/<api_name>/<version>/openapi.yaml` (например, `api-specs/petstore/v3/openapi.yaml`)
       Для каждого найденного spec-path генерируются отдельные `internal/generated/...` и `internal/stubs/...` модули.
 * **Умная генерация заглушек**: Утилита `upd-stubs` генерирует бойлерплейт для реализации сервера. Она сканирует
   существующие файлы, чтобы гарантировать, что **существующая логика внутри методов сохранится** при повторной генерации
@@ -390,7 +390,7 @@ go run ./cmd/openapi-petstore-client --base-url http://localhost:8080 --tick 100
 # Запуск в режиме разработки (сборка + запуск)
 make docker-dev
 
-# После редактирования api/** или заглушек, пересоберите:
+# После редактирования api-specs/** или заглушек, пересоберите:
 make all
 
 # Эквивалентная команда Docker Compose

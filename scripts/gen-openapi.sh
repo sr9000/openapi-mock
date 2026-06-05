@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-find "api" \( -name "openapi.yaml" -o -name "openapi.yml" -o -name "openapi.json" \) | while read spec; do
+find "api-specs" \( -name "openapi.yaml" -o -name "openapi.yml" -o -name "openapi.json" \) | while read spec; do
     dir=$(dirname "$spec")
-    rel="${dir#api/}"
+    rel="${dir#api-specs/}"
     pkg=$(basename "$rel" | tr '-' '_')
     out="internal/generated/$rel"
 

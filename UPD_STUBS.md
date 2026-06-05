@@ -6,12 +6,12 @@
 
 ## Ключевые возможности
 
-### 1. Обнаружение спецификаций из `api/`
+### 1. Обнаружение спецификаций из `api-specs/`
 
 Поддерживаются оба сценария одновременно:
 
-- `api/<api_name>/openapi.yaml`
-- `api/<api_name>/<version>/openapi.yaml` (например, `api/petstore/v3/openapi.yaml`)
+- `api-specs/<api_name>/openapi.yaml`
+- `api-specs/<api_name>/<version>/openapi.yaml` (например, `api-specs/petstore/v3/openapi.yaml`)
   Для каждого найденного spec-path создаются отдельные модули:
 - `internal/generated/<rel_path>/...`
 - `internal/stubs/<rel_path>/...`
@@ -88,7 +88,7 @@ go run ./cmd/upd-stubs \
 ## Ожидаемая структура проекта
 
 ```text
-./api/                       # Входные OpenAPI спецификации
+./api-specs/                       # Входные OpenAPI спецификации
 └── <api-name>/
     ├── openapi.yaml         # Базовая версия API
     └── v3/

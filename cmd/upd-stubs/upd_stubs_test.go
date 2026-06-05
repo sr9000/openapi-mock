@@ -244,7 +244,7 @@ func TestDiscoverOpenAPISpecs_SupportsVersionedAndNonVersionedInParallel(t *test
 	defer func() { _ = os.Chdir(origWD) }()
 
 	oldSpecsDir := specsDir
-	specsDir = "api"
+	specsDir = "api-specs"
 	defer func() { specsDir = oldSpecsDir }()
 
 	specBody := `openapi: 3.0.3
@@ -261,8 +261,8 @@ paths:
 `
 
 	paths := []string{
-		filepath.Join("api", "petstore", "openapi.yaml"),
-		filepath.Join("api", "petstore", "v3", "openapi.yaml"),
+		filepath.Join("api-specs", "petstore", "openapi.yaml"),
+		filepath.Join("api-specs", "petstore", "v3", "openapi.yaml"),
 	}
 	for _, p := range paths {
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {

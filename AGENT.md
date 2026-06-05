@@ -54,7 +54,7 @@ It already provides:
 
 - Improve dev ergonomics to match `grpc-mock`:
     - watcher-based local/dev flow,
-    - automatic regen/restart when `api/**` or stub code changes.
+    - automatic regen/restart when `api-specs/**` or stub code changes.
 
 ### Priority 3
 
