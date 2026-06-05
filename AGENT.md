@@ -34,13 +34,18 @@ It already provides:
 
 ## Gaps versus `grpc-mock`
 
-1. **Dev loop is weaker**
-    - `scripts/run-dev.sh` rebuilds and runs, but does not provide watcher-based hot reload in its documented primary flow
-2. **Operator surface is richer, but not yet aligned**
-    - flag semantics differ from `grpc-mock` (`--mgmt-enabled` vs `--no-mgmt`, etc.)
-3. **Higher complexity cost**
-    - more moving pieces in observability and updater pipeline
-    - stronger platform, but also more maintenance overhead
+The genuinely-open items; the full cross-repo list lives in `../CONTRACTS.md` §8.
+
+1. **Fewer CLI knobs** — logging/tracing are configurable via **env only**. `grpc-mock` also exposes
+   `--log-format/-output/-file/-level` and `--trace-*` flags. Either add the flags here or document env-only intentionally.
+2. **Dev loop parity** — `make docker-dev` is described as watch mode, but the documented primary flow still rebuilds
+   via `make all`. Confirm whether true file-watch reload is wired, and align the docs/help text accordingly.
+3. **Flag-name drift** — request logging is `--http-logging` (with `--logging` alias) vs `grpc-mock`'s `--logging`.
+   Standardise docs on the common `--logging`.
+4. **Higher complexity cost** — more moving pieces in observability and the updater pipeline; stronger platform but
+   more maintenance overhead.
+5. **Docs table nit** — the management-API "Extended" table lists `/metrics`, but metrics are served on the dedicated
+   `METRICS_PORT` (9100), not by the management server. Make the separate port explicit.
 
 ## Recommendations for unification work
 

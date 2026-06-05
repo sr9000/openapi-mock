@@ -202,20 +202,20 @@
 
 ### Extended-эндпоинты (HTTP-first, опциональные):
 
-| Метод       | Путь                                      | Описание                                     |
-|:------------|:------------------------------------------|:---------------------------------------------|
-| `GET`       | `/context-values`                         | Получить все context values по request id    |
-| `PUT/PATCH` | `/context-values`                         | Полная замена/обновление всех context values |
-| `DELETE`    | `/context-values`                         | Очистить все context values                  |
-| `GET`       | `/context-values/{request_id}`            | Получить values для request id               |
-| `PUT/PATCH` | `/context-values/{request_id}`            | Замена/обновление values для request id      |
-| `DELETE`    | `/context-values/{request_id}`            | Удалить values для request id                |
-| `GET`       | `/docs`                                   | Список OpenAPI-документов моков              |
-| `GET`       | `/docs/{api_name}`                        | Swagger UI для API или индекс версий         |
-| `GET`       | `/docs/{api_name}/openapi.json`           | OpenAPI JSON для API (если версия однозначна)|
-| `GET`       | `/docs/{api_name}/{api_ver}`              | Swagger UI для конкретной версии API         |
-| `GET`       | `/docs/{api_name}/{api_ver}/openapi.json` | OpenAPI JSON для версии API                  |
-| `GET`       | `/metrics`                                | Метрики Prometheus (RPS, тайминги, ошибки)   |
+| Метод       | Путь                                      | Описание                                                                                      |
+|:------------|:------------------------------------------|:----------------------------------------------------------------------------------------------|
+| `GET`       | `/context-values`                         | Получить все context values по request id                                                     |
+| `PUT/PATCH` | `/context-values`                         | Полная замена/обновление всех context values                                                  |
+| `DELETE`    | `/context-values`                         | Очистить все context values                                                                   |
+| `GET`       | `/context-values/{request_id}`            | Получить values для request id                                                                |
+| `PUT/PATCH` | `/context-values/{request_id}`            | Замена/обновление values для request id                                                       |
+| `DELETE`    | `/context-values/{request_id}`            | Удалить values для request id                                                                 |
+| `GET`       | `/docs`                                   | Список OpenAPI-документов моков                                                               |
+| `GET`       | `/docs/{api_name}`                        | Swagger UI для API или индекс версий                                                          |
+| `GET`       | `/docs/{api_name}/openapi.json`           | OpenAPI JSON для API (если версия однозначна)                                                 |
+| `GET`       | `/docs/{api_name}/{api_ver}`              | Swagger UI для конкретной версии API                                                          |
+| `GET`       | `/docs/{api_name}/{api_ver}/openapi.json` | OpenAPI JSON для версии API                                                                   |
+| `GET`       | `/metrics`                                | Метрики Prometheus — обслуживаются на отдельном порту `METRICS_PORT` (9100), не mgmt-сервером |
 
 ### Формат записи вызова:
 
