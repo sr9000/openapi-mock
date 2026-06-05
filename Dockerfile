@@ -75,7 +75,8 @@ USER appuser
 COPY --from=builder /app/bin/openapi-mock .
 
 # Default configuration
-ENV HTTP_PORT=8080
+ENV HOST=0.0.0.0
+ENV PORT=8080
 ENV MGMT_PORT=9000
 ENV METRICS_PORT=9100
 EXPOSE 8080 9000 9100

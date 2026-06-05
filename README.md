@@ -27,7 +27,7 @@
 │   ├── mgmt/            # Сервер управления для e2e-тестирования
 │   ├── middleware/      # HTTP middleware (логирование, запись)
 │   └── recorder/        # Запись HTTP-вызовов
-├── api/                 # <--- Поместите ваши OpenAPI спецификации сюда
+├── api-specs/                 # <--- Поместите ваши OpenAPI спецификации сюда
 │   ├── echo/            # Пример: Echo API (без версии)
 │   │   └── openapi.yaml
 │   └── petstore/        # Пример: Petstore API
@@ -46,16 +46,16 @@
 
 Рабочий процесс максимально упрощен:
 
-1. **Создайте OpenAPI спецификацию** в директории `api/`.
+1. **Создайте OpenAPI спецификацию** в директории `api-specs/`.
 
    Например, для нового API `myservice`:
    ```bash
-   mkdir -p api/myservice
-   # Создайте api/myservice/openapi.yaml с вашей спецификацией
+   mkdir -p api-specs/myservice
+   # Создайте api-specs/myservice/openapi.yaml с вашей спецификацией
 
    # Дополнительно можно держать версию рядом
-   mkdir -p api/myservice/v3
-   # Создайте api/myservice/v3/openapi.yaml
+   mkdir -p api-specs/myservice/v3
+   # Создайте api-specs/myservice/v3/openapi.yaml
    ```
 
 2. **Запустите команду сборки**:
@@ -63,7 +63,7 @@
    make all
    ```
    Эта команда выполнит:
-    - `make openapi` — генерация Go-кода из всех спецификаций в `api/`
+    - `make openapi` — генерация Go-кода из всех спецификаций в `api-specs/`
     - `make stub` — создание/обновление заглушек в `internal/stubs/`
     - `make wire` — обновление DI-конфигурации для всех API
     - `make build` — компиляция бинарного файла
@@ -86,11 +86,11 @@
 
 ## ✨ Ключевые возможности
 
-* **Мульти-API поддержка**: Добавляйте любое количество OpenAPI спецификаций в `api/`. Все API автоматически
+* **Мульти-API поддержка**: Добавляйте любое количество OpenAPI спецификаций в `api-specs/`. Все API автоматически
   объединяются в один HTTP-сервер с единой точкой входа.
 * **Поддержка версий API**: Одновременно поддерживаются оба формата:
-    * `api/<api_name>/openapi.yaml`
-    * `api/<api_name>/<version>/openapi.yaml` (например, `api/petstore/v3/openapi.yaml`)
+    * `api-specs/<api_name>/openapi.yaml`
+    * `api-specs/<api_name>/<version>/openapi.yaml` (например, `api-specs/petstore/v3/openapi.yaml`)
       Для каждого найденного spec-path генерируются отдельные `internal/generated/...` и `internal/stubs/...` модули.
 * **Умная генерация заглушек**: Утилита `upd-stubs` генерирует бойлерплейт для реализации сервера. Она сканирует
   существующие файлы, чтобы гарантировать, что **существующая логика внутри методов сохранится** при повторной генерации
@@ -137,10 +137,29 @@
 
 #### Флаги:
 
-| Флаг     | Сокр. | Описание                                 |
-|:---------|:------|:-----------------------------------------|
-| `--port` | `-p`  | Порт (переопределяет переменную `PORT`). |
-| `--help` | `-h`  | Показать справку.                        |
+| Флаг                           | Сокр. | Описание                                                                            |
+|:-------------------------------|:------|:------------------------------------------------------------------------------------|
+| `--host`                       |       | Хост интерфейса (переопределяет переменную `HOST`).                                 |
+| `--port`                       | `-p`  | Порт (переопределяет переменную `PORT`).                                            |
+| `--mgmt-port`                  |       | Порт сервера управления (переопределяет `MGMT_PORT`).                               |
+| `--metrics-port`               |       | Порт сервера метрик (переопределяет `METRICS_PORT`).                                |
+| `--mgmt-enabled`               |       | Включить сервер управления (переопределяет `MGMT_ENABLED`).                         |
+| `--metrics-enabled`            |       | Включить сервер метрик (переопределяет `METRICS_ENABLED`).                          |
+| `--http-logging`               |       | Включить логирование HTTP запросов (переопределяет `HTTP_LOGGING`).                 |
+| `--logging`                    |       | Алиас для `--http-logging` (переопределяет `HTTP_LOGGING`).                         |
+| `--log-format`                 |       | Формат логов: json/console (переопределяет `LOG_FORMAT`).                           |
+| `--log-output`                 |       | Куда писать логи: stdout/file (переопределяет `LOG_OUTPUT`).                        |
+| `--log-file`                   |       | Путь до лог-файла при output=file (переопределяет `LOG_FILE`).                      |
+| `--log-level`                  |       | Уровень логирования: debug..error (переопределяет `LOG_LEVEL`).                     |
+| `--trace-enabled`              |       | Включить OpenTelemetry tracing (переопределяет `TRACE_ENABLED`).                    |
+| `--trace-exporter`             |       | Экспортер трейсов: none/file/otlp-http (переопределяет `TRACE_EXPORTER`).           |
+| `--trace-endpoint`             |       | OTLP HTTP endpoint, напр. otel-collector:4318 (переопределяет `TRACE_ENDPOINT`).    |
+| `--trace-file`                 |       | Файл трейсов при exporter=file (переопределяет `TRACE_FILE`).                       |
+| `--trace-sampling-ratio`       |       | Доля семплирования 0.0–1.0 (переопределяет `TRACE_SAMPLING_RATIO`).                 |
+| `--request-id-headers`         |       | Заголовки входящего request id через запятую (переопределяет `REQUEST_ID_HEADERS`). |
+| `--request-id-response-header` |       | Каноничный response header (переопределяет `REQUEST_ID_RESPONSE_HEADER`).           |
+| `--cors-allow-origins`         |       | CORS allow origins через запятую (переопределяет `CORS_ALLOW_ORIGINS`).             |
+| `--help`                       | `-h`  | Показать справку.                                                                   |
 
 #### Переменные окружения:
 
@@ -177,99 +196,38 @@
 ./bin/openapi-mock run 127.0.0.1 8080
 ```
 
-## 🔭 Обозреваемость (Observability)
-
-Проект включает встроенную поддержку современных практик Observability для удобства отладки и прозрачности:
-
-### Метрики (Prometheus)
-
-На выделенном порту (`9100` по умолчанию) работает сервер метрик. В метриках автоматически подставляются конкретные
-OpenAPI-операции (поле `operation`), чтобы можно было легко агрегировать статистику по конкретным ручкам даже при
-использовании путей с параметрами:
-
-```bash
-curl -sS http://localhost:9100/metrics | grep http_requests_total
-# Пример вывода:
-# http_requests_total{endpoint="/echo",method="POST",operation="Echo",status="200"} 1
-# http_requests_total{endpoint="/pets/{petId}",method="GET",operation="GetPetById",status="200"} 1
-```
-
-В случае ошибок парсинга (например, неверный JSON) метрики будут содержать `kind="request_parse"`, но при этом сохранят
-правильную привязку к исходному `endpoint` и `operation`.
-
-### Трассировка (OpenTelemetry / Tempo)
-
-При включении флага `TRACE_ENABLED=true` (по умолчанию включено в `docker-compose.observability.yaml`) сервер
-автоматически извлекает `traceparent` из заголовков HTTP-запросов и отправляет спаны в OpenTelemetry Collector.
-
-```bash
-# Пример запроса с пробросом конкретного trace_id = 4bf92f3577b34da6a3ce929d0e0e4736
-curl -X POST http://localhost:8080/echo \
-  -H 'Content-Type: application/json' \
-  -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' \
-  -d '{"message":"traced"}'
-```
-
-### Структурированное логирование (Loki / ZeroLog)
-
-Все логи HTTP-запросов (access logs) и внутреннее логирование автоматически связываются с `request_id`, `trace_id` и
-`operation`.
-Формат логов по умолчанию — `json` (управляется переменной `LOG_FORMAT`), что делает их готовыми для парсинга. В
-заглушках (stubs) рекомендуется использовать контекстный логгер из `pkg/observability` для сохранения привязки к
-`trace_id`:
-
-```go
-logger := observability.Logger(ctx, zerolog.Nop())
-logger.Info().Msg("Запрос достиг бизнес-логики") // Будет содержать trace_id и operation
-```
-
-### Полный локальный стек (Grafana)
-
-Compose-файлы лежат в корне репозитория, а все конфиги observability — в `deploy/`:
-
-- `docker-compose.dev.yaml` — dev-окружение.
-- `docker-compose.observability.yaml` — полный observability-стек.
-- `.env.example` — пример локальных переменных окружения.
-- `deploy/prometheus.yaml`, `deploy/otel.yaml`, `deploy/promtail.yaml`, `deploy/tempo.yaml` — плоские конфиги сервисов.
-- `deploy/grafana/` — образ Grafana и provisioning (datasources + dashboards).
-
-Вы можете поднять полный изолированный стек (Prometheus, Loki, Tempo, OTel Collector, Grafana), выполнив:
-
-```bash
-make compose-up
-```
-
-- **Grafana** будет доступна по адресу `http://localhost:3000`.
-- Заранее настроенные дашборды и источники данных покажут RPS, latency, распределение по OpenAPI-операциям,
-  ошибки/паники по `kind`, а трассы и логи будут доступны через Grafana Explore (Tempo + Loki).
-
 ## 🔧 Сервер управления (Management API)
 
 Для поддержки e2e-тестирования OpenAPI-мок включает встроенный HTTP-сервер управления на порту 9000 (по умолчанию).
 Этот сервер записывает все HTTP-вызовы и предоставляет API для их просмотра и очистки.
 
-### Эндпоинты:
+### Core-эндпоинты (обязательные, идентичны grpc-mock):
 
-| Метод       | Путь                                      | Описание                                            |
-|:------------|:------------------------------------------|:----------------------------------------------------|
-| `GET`       | `/logs`                                   | Получить все записанные HTTP-вызовы в формате JSON  |
-| `GET`       | `/logs/{request_id}`                      | Получить записи только для конкретного request id   |
-| `DELETE`    | `/logs`                                   | Очистить все записи                                 |
-| `GET`       | `/context-values`                         | Получить все context values по request id           |
-| `PUT/PATCH` | `/context-values`                         | Полная замена/обновление всех context values        |
-| `DELETE`    | `/context-values`                         | Очистить все context values                         |
-| `GET`       | `/context-values/{request_id}`            | Получить values для request id                      |
-| `PUT/PATCH` | `/context-values/{request_id}`            | Замена/обновление values для request id             |
-| `DELETE`    | `/context-values/{request_id}`            | Удалить values для request id                       |
-| `GET`       | `/doc`                                    | Интерактивная страница Swagger UI                   |
-| `POST`      | `/reset`                                  | Soft reset mock HTTP-сервера без остановки процесса |
-| `GET`       | `/docs`                                   | Список OpenAPI-документов моков                     |
-| `GET`       | `/docs/{api_name}`                        | Swagger UI для API или индекс версий                |
-| `GET`       | `/docs/{api_name}/openapi.json`           | OpenAPI JSON для API (если версия однозначна)       |
-| `GET`       | `/docs/{api_name}/{api_ver}`              | Swagger UI для конкретной версии API                |
-| `GET`       | `/docs/{api_name}/{api_ver}/openapi.json` | OpenAPI JSON для версии API                         |
-| `GET`       | `/openapi.json`                           | Спецификация OpenAPI в формате JSON                 |
-| `GET`       | `/metrics`                                | Метрики Prometheus (RPS, тайминги, ошибки)          |
+| Метод    | Путь                 | Описание                                            |
+|:---------|:---------------------|:----------------------------------------------------|
+| `GET`    | `/logs`              | Получить все записанные HTTP-вызовы в формате JSON  |
+| `GET`    | `/logs/{request_id}` | Получить записи только для конкретного request id   |
+| `DELETE` | `/logs`              | Очистить все записи                                 |
+| `POST`   | `/reset`             | Soft reset mock HTTP-сервера без остановки процесса |
+| `GET`    | `/doc`               | Интерактивная страница Swagger UI                   |
+| `GET`    | `/openapi.json`      | Спецификация OpenAPI в формате JSON                 |
+
+### Extended-эндпоинты (HTTP-first, опциональные):
+
+| Метод       | Путь                                      | Описание                                                                                      |
+|:------------|:------------------------------------------|:----------------------------------------------------------------------------------------------|
+| `GET`       | `/context-values`                         | Получить все context values по request id                                                     |
+| `PUT/PATCH` | `/context-values`                         | Полная замена/обновление всех context values                                                  |
+| `DELETE`    | `/context-values`                         | Очистить все context values                                                                   |
+| `GET`       | `/context-values/{request_id}`            | Получить values для request id                                                                |
+| `PUT/PATCH` | `/context-values/{request_id}`            | Замена/обновление values для request id                                                       |
+| `DELETE`    | `/context-values/{request_id}`            | Удалить values для request id                                                                 |
+| `GET`       | `/docs`                                   | Список OpenAPI-документов моков                                                               |
+| `GET`       | `/docs/{api_name}`                        | Swagger UI для API или индекс версий                                                          |
+| `GET`       | `/docs/{api_name}/openapi.json`           | OpenAPI JSON для API (если версия однозначна)                                                 |
+| `GET`       | `/docs/{api_name}/{api_ver}`              | Swagger UI для конкретной версии API                                                          |
+| `GET`       | `/docs/{api_name}/{api_ver}/openapi.json` | OpenAPI JSON для версии API                                                                   |
+| `GET`       | `/metrics`                                | Метрики Prometheus — обслуживаются на отдельном порту `METRICS_PORT` (9100), не mgmt-сервером |
 
 ### Формат записи вызова:
 
@@ -349,6 +307,72 @@ open http://localhost:9000/doc
 - Для очистки логов используйте `DELETE /logs`.
 - Для выборки логов по request id используйте `GET /logs/{request_id}`.
 
+## 🔭 Обозреваемость (Observability)
+
+Проект включает встроенную поддержку современных практик Observability для удобства отладки и прозрачности:
+
+### Метрики (Prometheus)
+
+На выделенном порту (`9100` по умолчанию) работает сервер метрик. В метриках автоматически подставляются конкретные
+OpenAPI-операции (поле `operation`), чтобы можно было легко агрегировать статистику по конкретным ручкам даже при
+использовании путей с параметрами:
+
+```bash
+curl -sS http://localhost:9100/metrics | grep http_requests_total
+# Пример вывода:
+# http_requests_total{endpoint="/echo",method="POST",operation="Echo",status="200"} 1
+# http_requests_total{endpoint="/pets/{petId}",method="GET",operation="GetPetById",status="200"} 1
+```
+
+В случае ошибок парсинга (например, неверный JSON) метрики будут содержать `kind="request_parse"`, но при этом сохранят
+правильную привязку к исходному `endpoint` и `operation`.
+
+### Трассировка (OpenTelemetry / Tempo)
+
+При включении флага `TRACE_ENABLED=true` (по умолчанию включено в `docker-compose.observability.yaml`) сервер
+автоматически извлекает `traceparent` из заголовков HTTP-запросов и отправляет спаны в OpenTelemetry Collector.
+
+```bash
+# Пример запроса с пробросом конкретного trace_id = 4bf92f3577b34da6a3ce929d0e0e4736
+curl -X POST http://localhost:8080/echo \
+  -H 'Content-Type: application/json' \
+  -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' \
+  -d '{"message":"traced"}'
+```
+
+### Структурированное логирование (Loki / ZeroLog)
+
+Все логи HTTP-запросов (access logs) и внутреннее логирование автоматически связываются с `request_id`, `trace_id` и
+`operation`.
+Формат логов по умолчанию — `json` (управляется переменной `LOG_FORMAT`), что делает их готовыми для парсинга. В
+заглушках (stubs) рекомендуется использовать контекстный логгер из `pkg/observability` для сохранения привязки к
+`trace_id`:
+
+```go
+logger := observability.Logger(ctx, zerolog.Nop())
+logger.Info().Msg("Запрос достиг бизнес-логики") // Будет содержать trace_id и operation
+```
+
+### Полный локальный стек (Grafana)
+
+Compose-файлы лежат в корне репозитория, а все конфиги observability — в `deploy/`:
+
+- `docker-compose.dev.yaml` — dev-окружение.
+- `docker-compose.observability.yaml` — полный observability-стек.
+- `.env.example` — пример локальных переменных окружения.
+- `deploy/prometheus.yaml`, `deploy/otel.yaml`, `deploy/promtail.yaml`, `deploy/tempo.yaml` — плоские конфиги сервисов.
+- `deploy/grafana/` — образ Grafana и provisioning (datasources + dashboards).
+
+Вы можете поднять полный изолированный стек (Prometheus, Loki, Tempo, OTel Collector, Grafana), выполнив:
+
+```bash
+make compose-up
+```
+
+- **Grafana** будет доступна по адресу `http://localhost:3000`.
+- Заранее настроенные дашборды и источники данных покажут RPS, latency, распределение по OpenAPI-операциям,
+  ошибки/паники по `kind`, а трассы и логи будут доступны через Grafana Explore (Tempo + Loki).
+
 ## 🧪 Генератор нагрузки для примера Petstore
 
 В репозитории есть вспомогательная утилита `cmd/openapi-petstore-client`, которая генерирует фоновую HTTP-нагрузку на
@@ -378,7 +402,7 @@ go run ./cmd/openapi-petstore-client --base-url http://localhost:8080 --tick 100
 # Запуск в режиме разработки (сборка + запуск)
 make docker-dev
 
-# После редактирования api/** или заглушек, пересоберите:
+# После редактирования api-specs/** или заглушек, пересоберите:
 make all
 
 # Эквивалентная команда Docker Compose

@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	openapiWireOut = "internal/app/openapi_wire.go"
+	openapiWireOut = "internal/app/wire.go"
 	dryRun         bool
 	pruneStale     bool
 	verboseLogs    bool
@@ -36,7 +36,7 @@ func run() error {
 		return err
 	}
 	if len(openapiSpecs) == 0 {
-		log.Println("No OpenAPI specs found in api/ directory")
+		log.Println("No OpenAPI specs found in api-specs/ directory")
 		return nil
 	}
 
